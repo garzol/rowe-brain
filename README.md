@@ -40,6 +40,9 @@ Since the first schematic we have had access to was the -01 (see rowe ami doc p.
 ### Synopsis
 ![Synopsis](images/cccsynops.001.png)
 
+### Result
+![Original vs clone](images/ovsc.jpg)
+
 ## ROM Copy 
 We have read the 2K bin code which resides in the 2316 of the R6500/alternate board. This board is made of :
 - The CPU, which is a R6503 Rockwell device, clocked at 1MHz.
