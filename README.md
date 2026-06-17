@@ -30,12 +30,15 @@ The CCC board exists in 2 versions:
 
 The 2 boards are interchangeable. However, the -01 hosts a Rockwell microcontroller based on 650x, while the -04 must be equipped with a MOSTEK 3870 microcontroller.
 
-The differences are very well described in the document r84ts_dl.pdf.
+The differences are very well described in the document [r84ts_dl.pdf](r84ts_dl.pdf).
 
 They both have 40 DIL pins, but their pin-out is different. Hence, you cannot fit a -01 with a MOSTEK, or vice-versa a -04 with a Rockwell one.
 
 Since the first schematic we have had access to was the -01 (see rowe ami doc p.38), we decided to go cloning the -01. Besides, we are more accustomed to 6502 instruction set rather than to Mostek.
 
+## Milestone 1: Redesign of the board
+### Synopsis
+![Synopsis](images/cccsynops.001.png)
 
 ## ROM Copy 
 We have read the 2K bin code which resides in the 2316 of the R6500/alternate board. This board is made of :
