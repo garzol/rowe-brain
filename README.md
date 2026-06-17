@@ -44,8 +44,8 @@ Since the first schematic we have had access to was the -01 (see rowe ami doc p.
 ![Original vs clone](images/ovsc.jpg)
 
 ## Milestone 2: Cloning of the microcontroller
-### What is to be rewritten in VHDL
-[Schematic of the original microcontroller](doc/schemas_rowe_ami_c 40.pdf)
+### What is to be rewritten in VHDL 
+![Schematic of the original microcontroller](images/schemas_rowe_ami_c_40.jpg)
 
 ### ROM Copy 
 We have read the 2K bin code which resides in the 2316 of the R6500/alternate board. This board is made of :
