@@ -1,0 +1,1375 @@
+m00..m09 contains returns values for strobe 0..9
+
+Strobe 0 : leds
+Strobe 1 : 1st digit Z401
+Strobe 2 : 2nd digit Z402
+Strobe 3 : 3rd digit Z403
+
+
+Strobe 6 : Z104
+Strobe 5 : Z103
+Strobe 8 : Z102
+Strobe 7 : Z101
+
+PD<=>PA of the 6520
+PB<=>PB of the 6520 (8 external pull-ups connected to it)
+
+PA<=>PA of the 6532
+PC<=>PB of the 6532
+
+PB0<=>  MoneyControl signal
+PB2<=>  PlayControl signal
+PB3<=>  Toggle signal
+PB4<=>  TurntableMtr signal
+PB5<=>  TransferMtr signal
+PB6<=>  MagazineMtr signal
+PB7<=>  Detent signal
+
+                                * = $0800
+0800   A2 3F                    LDX #$3F          ;(2) 40-byte RAM reset
+0802   9A                       TXS               ;(2)
+0803   A9 00                    LDA #$00          ;(2)
+0805   95 00      L0805         STA $00,X         ;(4)
+0807   CA                       DEX               ;(2)
+0808   10 FB                    BPL L0805         ;(2/3)
+
+						  ; R6520 (A->PD, B->PB)
+080A   85 C1                    STA $C1           ;(3) write #0  to CRA
+080C   85 C3                    STA $C3           ;(3) write #0  to CRB
+080E   86 C0                    STX PortD          ;(3) write #FF to DDRA
+0810   86 C2                    STX PortB          ;(3) write #FF to DDRB
+0812   A0 04                    LDY #$04          ;(2)
+0814   84 C1                    STY $C1           ;(3) CRA bit2=1 
+0816   84 C3                    STY $C3           ;(3) CRB bit2=1
+0818   86 C0                    STX PortD          ;(3) write #FF to ORA
+081A   86 C2                    STX PortB          ;(3) write #FF to ORB
+
+						  ; R6532 (A->PA, B->PC)
+081C   86 83                    STX $83           ;(3) write #FF to DDRB
+081E   86 82                    STX PortC           ;(3) write #FF to ORB (PC)
+0820   A9 F5                    LDA #$F5          ;(2)
+0822   85 81                    STA $81           ;(3) write #F5 to DDRA
+0824   A9 9A                    LDA #$9A          ;(2) 
+0826   85 80                    STA PortA           ;(3) write b10011010 to PA
+PA0=Tx
+PA1=Rx
+PA2=NC
+PA3=Battery status (1=>Batt. OK)
+PA4=7-seg Digits strobe (local board) (0=>digits off)
+PA5=Returns sent to PD (0=> strobe returns)
+PA6=NVRAM OD (1=>OD) 
+PA7=NVRAM R/W (1=>Read)
+(RW)(OD)(SW)(7S)(Bat)(NC)(Rx)(Tx)
+5A=>01011010 = Writ NVRAM, RAM out disable, Returns Hi-Z, Digits on
+9A=>10011010 = Read NVRAM, RAM out enable,  Returns Hi-Z, Digits on
+CA=>11001010 = Read NVRAM, RAM out disable, Returns Hi-Z, Digits off
+DA=>11011010 = Read NVRAM, RAM out disable, Returns Hi-Z, Digits on
+FA=>11111010 = Read NVRAM, RAM out disable, Returns on, Digits on
+0828   85 23                    STA $23           ;(3) m23<=#9A
+082A   A9 63                    LDA #$63          ;(2)
+082C   85 2B                    STA $2B           ;(3) m2B<=#63 (d99)
+082E   A9 10                    LDA #$10          ;(2) 
+0830   85 2D                    STA $2D           ;(3) m2D<=#10 (d16)
+
+0832   A5 80                    LDA PortA         ;(3) 
+0834   29 08                    AND #$08          ;(2) read PA3 (battery status. 1=OK)
+0836   D0 09                    BNE L0841         ;(2/3) Batt OK?
+Batt is low
+0838   A0 D0                    LDY #$D0          ;(2) 
+083A   20 7B 0D                 JSR L0D7B         ;(6)
+083D   66 04                    ROR $04           ;(5)
+083F   30 04                    BMI L0845         ;(2/3)
+
+Batt OK
+0841   24 02      L0841         BIT $02           ;(3)
+0843   10 06                    BPL L084B         ;(2/3)m02b7==0 ? S2R7 "Clear selection memory"
+0845   20 73 0D   L0845         JSR L0D73         ;(6) RESET bit7 of NVRAM(CD..00) or NVRAM(CB..00) depending on m03
+0848   20 94 0D                 JSR L0D94         ;(6) init NVRAM(D1..FF) to #D3init NVRAM(D1..FF) to #D3
+
+;read switch matrix 
+084B   A9 FA      L084B         LDA #$FA          ;(2) 
+084D   85 80                    STA PortA           ;(3) write b11111010 to PortA (returns on, digits on)
+084F   38                       SEC               ;(2) set carry
+0850   A2 0A      L0850         LDX #$0A          ;(2) strobe num 
+0852   D0 0C                    BNE L0860         ;(2/3)
+0854   D8         L0854         CLD               ;(2) clear decimal mode
+0855   EA                       NOP               ;(2)
+0856   A5 C0                    LDA PortD          ;(3) read PD
+0858   B0 04                    BCS L085E         ;(2/3)
+085A   15 00                    ORA $00,X         ;(4)
+085C   49 FF                    EOR #$FF          ;(2)
+085E   95 00      L085E         STA $00,X         ;(4)
+
+0860   CA         L0860         DEX               ;(2)
+0861   86 82                    STX PortC           ;(3) PC
+0863   10 EF                    BPL L0854         ;(2/3) 
+0865   90 03                    BCC L086A         ;(2/3)
+0867   18                       CLC               ;(2)
+0868   90 E6                    BCC L0850         ;(2/3)
+;end of switch matrix reading
+
+086A   A9 9A      L086A         LDA #$9A          ;(2)
+086C   85 80                    STA PortA           ;(3) PA<=10011010, (returns Hi-Z, digits on)
+086E   24 00                    BIT $00           ;(3)
+0870   10 15                    BPL L0887         ;(2/3) S0R7==0 ? "+8V On"
+0872   A9 63                    LDA #$63          ;(2)
+0874   85 2B                    STA $2B           ;(3)
+0876   85 27                    STA $27           ;(3)
+0878   24 02                    BIT $02           ;(3)
+087A   50 05                    BVC L0881         ;(2/3) S2R6==0 ? "Manual Credit"  
+087C   A9 CD                    LDA #$CD          ;(2)
+087E   20 A2 0D                 JSR L0DA2         ;(6)
+0881   20 10 0F   L0881         JSR L0F10         ;(6)
+0884   4C 91 08                 JMP L0891         ;(3)
+
+0887   24 23      L0887         BIT $23           ;(3)
+0889   30 03                    BMI L088E         ;(2/3)
+088B   20 2A 0E                 JSR L0E2A         ;(6)
+088E   20 94 0B   L088E         JSR L0B94         ;(6)
+0891   20 94 0A   L0891         JSR L0A94         ;(6)
+0894   20 A2 0C                 JSR L0CA2         ;(6) test of optical index ($2C involved)
+0897   A5 1E                    LDA $1E           ;(3)
+0899   A6 26                    LDX $26           ;(3)
+089B   F0 0C                    BEQ L08A9         ;(2/3) branch if (m26)==0
+089D   C6 26                    DEC $26           ;(5)  (m26)--
+089F   D0 08                    BNE L08A9         ;(2/3) 
+08A1   09 40                    ORA #$40          ;(2)
+08A3   24 1E                    BIT $1E           ;(3)
+08A5   30 02                    BMI L08A9         ;(2/3) test bit7 (detentSignal)
+08A7   29 BF                    AND #$BF          ;(2) Raz of bit6 10111111 (magazineMotorSig)
+08A9   85 1E      L08A9         STA $1E           ;(3)
+08AB   49 FF                    EOR #$FF          ;(2)
+08AD   85 C2                    STA PortB          ;(3) only point where PortB is updated
+08AF   06 06                    ASL $06           ;(5)
+08B1   06 06                    ASL $06           ;(5) after this, optical home is in the carry bit
+08B3   A9 CE      L08B3         LDA #$CE          ;(2)
+08B5   85 82                    STA PortC           ;(3)
+08B7   24 C0                    BIT PortD          ;(3)
+08B9   30 1A                    BMI L08D5         ;(2/3)
+08BB   24 06                    BIT $06           ;(3) after double ASL at 8AF
+08BD   10 43                    BPL L0902         ;(2/4) S6R7==0 ? "Inner Cam Switch"
+08BF   A5 1E                    LDA $1E           ;(3)
+08C1   29 10                    AND #$10          ;(2)
+08C3   F0 4A                    BEQ L090F         ;(2/4)
+08C5   24 23                    BIT $23           ;(3)
+08C7   70 43                    BVS L090C         ;(2/4)
+08C9   A9 40                    LDA #$40          ;(2)
+08CB   05 23                    ORA $23           ;(3)
+08CD   85 23                    STA $23           ;(3)
+08CF   20 EE 0C                 JSR L0CEE         ;(6)
+08D2   4C B3 08                 JMP L08B3         ;(3)
+
+08D5   A5 1E      L08D5         LDA $1E           ;(3)
+08D7   24 06                    BIT $06           ;(3) after double ASL at 8AF
+08D9   10 04                    BPL L08DF         ;(2/3) S6R7==0 ? "Inner Cam Switch"
+08DB   09 14                    ORA #$14          ;(2)
+08DD   D0 25                    BNE L0904         ;(2/4)
+08DF   A4 2D      L08DF         LDY $2D           ;(3)
+08E1   F0 10                    BEQ L08F3         ;(2/3)
+08E3   24 C0                    BIT PortD          ;(3)
+08E5   50 02                    BVC L08E9         ;(2/3)
+08E7   09 08                    ORA #$08          ;(2)
+08E9   09 10      L08E9         ORA #$10          ;(2)
+08EB   24 06                    BIT $06           ;(3) after double ASL at 8AF
+08ED   50 15                    BVC L0904         ;(2/4) S6R6==0 ? "Outer Cam Switch"
+08EF   C6 2D                    DEC $2D           ;(5)
+08F1   70 36                    BVS L0929         ;(2/4)
+08F3   29 D3      L08F3         AND #$D3          ;(2)
+08F5   85 1E                    STA $1E           ;(3)
+08F7   24 00                    BIT $00           ;(3)
+08F9   50 30                    BVC L092B         ;(2/4)
+08FB   A5 C0                    LDA PortD          ;(3)
+08FD   29 7F                    AND #$7F          ;(2)
+08FF   20 25 0D                 JSR L0D25         ;(6)
+0902   A5 1E      L0902         LDA $1E           ;(3)
+0904   09 20      L0904         ORA #$20          ;(2)
+0906   A2 10                    LDX #$10          ;(2)
+0908   86 2D                    STX $2D           ;(3)
+090A   D0 1D                    BNE L0929         ;(2/3)
+090C   20 39 0D   L090C         JSR L0D39         ;(6)
+090F   24 00      L090F         BIT $00           ;(3)
+0911   10 02                    BPL L0915         ;(2/3)
+0913   50 1C                    BVC L0931         ;(2/3)
+0915   38         L0915         SEC               ;(2)
+0916   A6 27                    LDX $27           ;(3)
+0918   30 05                    BMI L091F         ;(2/3)
+091A   66 27                    ROR $27           ;(5)
+091C   20 62 0D                 JSR L0D62         ;(6)
+091F   A5 1E      L091F         LDA $1E           ;(3)
+0921   29 EF                    AND #$EF          ;(2)
+0923   C6 2D                    DEC $2D           ;(5)
+0925   10 02                    BPL L0929         ;(2/3)
+0927   29 C3                    AND #$C3          ;(2)
+0929   85 1E      L0929         STA $1E           ;(3)
+092B   20 36 09   L092B         JSR L0936         ;(6)
+092E   4C 41 08                 JMP L0841         ;(3)
+0931   20 17 0D   L0931         JSR L0D17         ;(6)
+0934   50 E9                    BVC L091F         ;(2/3)
+0936   A2 02      L0936         LDX #$02          ;(2)
+0938   A5 22                    LDA $22           ;(3)
+093A   F0 02                    BEQ L093E         ;(2/3)
+093C   86 31                    STX $31           ;(3)
+093E   C6 30      L093E         DEC $30           ;(5)
+0940   D0 13                    BNE L0955         ;(2/3)
+0942   A9 A8                    LDA #$A8          ;(2)
+0944   85 30                    STA $30           ;(3)
+0946   C6 31                    DEC $31           ;(5)
+0948   10 21                    BPL L096B         ;(2/3)
+094A   A5 36                    LDA $36           ;(3)
+094C   29 10                    AND #$10          ;(2)
+094E   F0 09                    BEQ L0959         ;(2/3)
+0950   20 DE 0D                 JSR L0DDE         ;(6)
+0953   D0 16                    BNE L096B         ;(2/3)
+0955   24 36      L0955         BIT $36           ;(3)
+0957   50 12                    BVC L096B         ;(2/3)
+0959   A5 1F      L0959         LDA $1F           ;(3)
+095B   20 BF 0D                 JSR L0DBF         ;(6)
+095E   A9 40                    LDA #$40          ;(2)
+0960   24 23                    BIT $23           ;(3)
+0962   30 01                    BMI L0965         ;(2/3)
+0964   4A                       LSR A             ;(2)
+0965   85 36      L0965         STA $36           ;(3)
+0967   A9 04                    LDA #$04          ;(2)
+0969   85 31                    STA $31           ;(3)
+096B   A2 03      L096B         LDX #$03          ;(2)
+096D   24 01                    BIT $01           ;(3)
+096F   30 12                    BMI L0983         ;(2/3)
+0971   A9 FC                    LDA #$FC          ;(2)
+0973   25 36                    AND $36           ;(3)
+0975   85 36                    STA $36           ;(3)
+0977   A5 14                    LDA $14           ;(3)
+0979   18                       CLC               ;(2)
+097A   65 15                    ADC $15           ;(3)
+097C   F0 06                    BEQ L0984         ;(2/3)
+097E   C5 0E                    CMP $0E           ;(3)
+0980   B0 01                    BCS L0983         ;(2/3)
+0982   CA                       DEX               ;(2)
+0983   8A         L0983         TXA               ;(2)
+0984   05 36      L0984         ORA $36           ;(3)
+0986   A2 03                    LDX #$03          ;(2)
+0988   24 00                    BIT $00           ;(3)
+098A   10 07                    BPL L0993         ;(2/3)
+098C   8A                       TXA               ;(2)
+098D   A2 08                    LDX #$08          ;(2)
+098F   A0 01                    LDY #$01          ;(2)
+0991   84 31                    STY $31           ;(3) m31<=#01
+0993   86 13      L0993         STX $13           ;(3) m13<=#08
+0995   85 36                    STA $36           ;(3)
+0997   85 0A                    STA $0A           ;(3)
+0999   A4 31                    LDY $31           ;(3)
+099B   D0 07                    BNE L09A4         ;(2/3)
+099D   29 03                    AND #$03          ;(2)
+099F   85 0A                    STA $0A           ;(3)
+09A1   20 FD 0D                 JSR L0DFD         ;(6)
+09A4   A6 32      L09A4         LDX $32           ;(3)
+09A6   86 82                    STX PortC           ;(3)
+09A8   A5 C0                    LDA PortD          ;(3)
+09AA   24 2A                    BIT $2A           ;(3)
+09AC   50 02                    BVC L09B0         ;(2/3)
+09AE   B5 00                    LDA $00,X         ;(4)
+09B0   85 2F      L09B0         STA $2F           ;(3)
+09B2   A5 33                    LDA $33           ;(3)
+09B4   29 08                    AND #$08          ;(2)
+09B6   85 33                    STA $33           ;(3)
+
+;loop for I don't know what (yet) Something having to do with the 7-segs display
+09B8   A6 13      L09B8         LDX $13           ;(3)
+09BA   B5 0A                    LDA $0A,X         ;(4)
+09BC   E8                       INX               ;(2)
+09BD   CA                       DEX               ;(2)
+09BE   D0 0A                    BNE L09CA         ;(2/3)
+09C0   A4 30                    LDY $30           ;(3)
+09C2   C0 32                    CPY #$32          ;(2)
+09C4   B0 08                    BCS L09CE         ;(2/3)
+09C6   29 27                    AND #$27          ;(2)
+09C8   90 04                    BCC L09CE         ;(2/3)
+09CA   A8         L09CA         TAY               ;(2)
+09CB   B9 EF 0F                 LDA $0FEF,Y       ;(4/5) Lookup table 7-seg values 0..9, -
+09CE   49 FF      L09CE         EOR #$FF          ;(2)
+09D0   A0 DA                    LDY #$DA          ;(2) Read NVRAM, RAM out disable, Returns Hi-Z, Digits on
+09D2   84 80                    STY PortA           ;(3) PA<=digits on
+09D4   85 C0                    STA PortD          ;(3) PD<=digit value to be displayed
+09D6   86 82                    STX PortC           ;(3) PC<=digit number to be set
+09D8   A2 CA                    LDX #$CA          ;(2) Read NVRAM, RAM out disable, Returns Hi-Z, Digits off
+09DA   86 80                    STX PortA           ;(3)
+09DC   A9 BC      L09DC         LDA #$BC          ;(2) d188
+09DE   85 95                    STA $95           ;(3) Write timer divide by 8 (1/8MHz) 188*8us= 1.5ms
+09E0   A4 00                    LDY $00           ;(3)
+09E2   30 56                    BMI L0A3A         ;(2/4) service switch on ?
+09E4   A5 33                    LDA $33           ;(3)
+09E6   D0 1F                    BNE L0A07         ;(2/4)
+09E8   A9 10                    LDA #$10          ;(2)
+09EA   85 33                    STA $33           ;(3)
+09EC   A6 32                    LDX $32           ;(3)
+09EE   D0 0C                    BNE L09FC         ;(2/3)
+09F0   85 34                    STA $34           ;(3)
+09F2   A5 2A                    LDA $2A           ;(3)
+09F4   49 40                    EOR #$40          ;(2)
+09F6   85 2A                    STA $2A           ;(3)
+09F8   70 02                    BVS L09FC         ;(2/3)
+09FA   A2 40                    LDX #$40          ;(2)
+09FC   CA         L09FC         DEX               ;(2)
+09FD   86 32                    STX $32           ;(3)
+09FF   86 2F                    STX $2F           ;(3)
+0A01   A0 03                    LDY #$03          ;(2)
+0A03   A2 14      L0A03         LDX #$14          ;(2)
+0A05   D0 0C                    BNE L0A13         ;(2/3)
+0A07   A0 02      L0A07         LDY #$02          ;(2)
+0A09   C6 33      L0A09         DEC $33           ;(5)
+0A0B   A2 28      L0A0B         LDX #$28          ;(2)
+0A0D   06 2F                    ASL $2F           ;(5)
+0A0F   90 02                    BCC L0A13         ;(2/3)
+0A11   A2 3C      L0A11         LDX #$3C          ;(2)
+0A13   E6 80      L0A13         INC PortA           ;(5)
+0A15   CA         L0A15         DEX               ;(2)
+0A16   D0 FD                    BNE L0A15         ;(2/3)
+0A18   A9 CA                    LDA #$CA          ;(2)
+0A1A   85 80                    STA PortA           ;(3)
+0A1C   A2 14                    LDX #$14          ;(2)
+0A1E   CA         L0A1E         DEX               ;(2)
+0A1F   D0 FD                    BNE L0A1E         ;(2/3)
+0A21   88                       DEY               ;(2)
+0A22   30 16                    BMI L0A3A         ;(2/3)
+0A24   D0 E3                    BNE L0A09         ;(2/3)
+0A26   A5 33                    LDA $33           ;(3)
+0A28   D0 0C                    BNE L0A36         ;(2/3)
+0A2A   A5 22                    LDA $22           ;(3)
+0A2C   C9 03                    CMP #$03          ;(2)
+0A2E   D0 06                    BNE L0A36         ;(2/3)
+0A30   24 29                    BIT $29           ;(3)
+0A32   70 DD                    BVS L0A11         ;(2/3)
+0A34   50 D5                    BVC L0A0B         ;(2/3)
+0A36   24 28      L0A36         BIT $28           ;(3)
+0A38   70 C9                    BVS L0A03         ;(2/3)
+
+0A3A   A5 28      L0A3A         LDA $28           ;(3)
+0A3C   29 BF                    AND #$BF          ;(2)
+0A3E   85 28                    STA $28           ;(3)
+0A40   A0 1B                    LDY #$1B          ;(2)
+0A42   A5 80      L0A42         LDA PortA           ;(3)
+0A44   29 02                    AND #$02          ;(2) Rx
+0A46   D0 01                    BNE L0A49         ;(2/3) test Rx
+0A48   E8                       INX               ;(2)
+
+0A49   88         L0A49         DEY               ;(2)
+0A4A   10 F6                    BPL L0A42         ;(2/3)
+0A4C   24 85      L0A4C         BIT $85           ;(3)
+0A4E   10 FC                    BPL L0A4C         ;(2/3) Test of timer interrupt bit (wait for 1.5ms)
+0A50   C6 13                    DEC $13           ;(5) m13--
+0A52   30 03                    BMI L0A57         ;(2/3)
+0A54   4C B8 09                 JMP L09B8         ;(3) loop back to begining of 7-segs loop
+0A57   A9 DA      L0A57         LDA #$DA          ;(2) 
+0A59   85 80                    STA PortA           ;(3) Read NVRAM, RAM out disable, Returns Hi-Z, Digits on
+0A5B   A9 9A                    LDA #$9A          ;(2) 
+0A5D   85 80                    STA PortA           ;(3) Read NVRAM, RAM out enable,  Returns Hi-Z, Digits on
+0A5F   84 C0                    STY PortD          ;(3)  Write #FF to port D
+0A61   A0 CA                    LDY #$CA          ;(2)
+0A63   E0 19                    CPX #$19          ;(2)
+0A65   B0 1D                    BCS L0A84         ;(2/3)
+0A67   E0 12                    CPX #$12          ;(2)
+0A69   90 09                    BCC L0A74         ;(2/3)
+0A6B   C6 34                    DEC $34           ;(5)
+0A6D   D0 15                    BNE L0A84         ;(2/3)
+0A6F   66 04                    ROR $04           ;(5)
+0A71   4C 73 0D                 JMP L0D73         ;(3)
+0A74   E0 0C      L0A74         CPX #$0C          ;(2)
+0A76   90 11                    BCC L0A89         ;(2/3)
+0A78   A0 C8                    LDY #$C8          ;(2)
+0A7A   06 33      L0A7A         ASL $33           ;(5)
+0A7C   38                       SEC               ;(2)
+0A7D   66 33                    ROR $33           ;(5)
+0A7F   A5 32                    LDA $32           ;(3)
+0A81   20 4B 0E                 JSR L0E4B         ;(6)
+0A84   06 33      L0A84         ASL $33           ;(5)
+0A86   46 33                    LSR $33           ;(5)
+0A88   60                       RTS               ;(6)
+0A89   E0 07      L0A89         CPX #$07          ;(2)
+0A8B   B0 ED                    BCS L0A7A         ;(2/3)
+0A8D   E0 02                    CPX #$02          ;(2)
+0A8F   90 F3                    BCC L0A84         ;(2/3)
+0A91   E6 16                    INC $16           ;(5)
+0A93   60                       RTS               ;(6)
+0A94   A2 00      L0A94         LDX #$00          ;(2)
+0A96   46 07                    LSR $07           ;(5)
+0A98   90 08                    BCC L0AA2         ;(2/3)
+0A9A   A9 40                    LDA #$40          ;(2)
+0A9C   85 36                    STA $36           ;(3)
+0A9E   86 22      L0A9E         STX $22           ;(3)
+0AA0   10 3E                    BPL L0AE0         ;(2/3)
+0AA2   A9 02      L0AA2         LDA #$02          ;(2)
+0AA4   25 36                    AND $36           ;(3)
+0AA6   F0 F6                    BEQ L0A9E         ;(2/3)
+0AA8   24 29                    BIT $29           ;(3)
+0AAA   70 42                    BVS L0AEE         ;(2/3)
+0AAC   46 07                    LSR $07           ;(5)
+0AAE   90 1E                    BCC L0ACE         ;(2/3)
+0AB0   A4 35                    LDY $35           ;(3)
+0AB2   D0 19                    BNE L0ACD         ;(2/3)
+0AB4   85 31                    STA $31           ;(3)
+0AB6   20 FD 0D                 JSR L0DFD         ;(6)
+0AB9   A0 06                    LDY #$06          ;(2)
+0ABB   84 35                    STY $35           ;(3)
+0ABD   A9 C9                    LDA #$C9          ;(2)
+0ABF   24 00                    BIT $00           ;(3)
+0AC1   30 32                    BMI L0AF5         ;(2/3)
+0AC3   A9 40                    LDA #$40          ;(2)
+0AC5   85 29                    STA $29           ;(3)
+0AC7   06 28                    ASL $28           ;(5)
+0AC9   46 28                    LSR $28           ;(5)
+0ACB   46 25      L0ACB         LSR $25           ;(5)
+0ACD   60         L0ACD         RTS               ;(6)
+0ACE   A9 1F      L0ACE         LDA #$1F          ;(2)
+0AD0   25 08                    AND $08           ;(3)
+0AD2   D0 24                    BNE L0AF8         ;(2/3)
+0AD4   A2 05                    LDX #$05          ;(2)
+0AD6   A5 09                    LDA $09           ;(3)
+0AD8   D0 1E                    BNE L0AF8         ;(2/3)
+0ADA   A5 35                    LDA $35           ;(3)
+0ADC   F0 02                    BEQ L0AE0         ;(2/3)
+0ADE   C6 35                    DEC $35           ;(5)
+0AE0   24 00      L0AE0         BIT $00           ;(3)
+0AE2   30 E9                    BMI L0ACD         ;(2/3)
+0AE4   24 29                    BIT $29           ;(3)
+0AE6   10 E3                    BPL L0ACB         ;(2/3)
+0AE8   A5 36                    LDA $36           ;(3)
+0AEA   29 90                    AND #$90          ;(2)
+0AEC   D0 DF                    BNE L0ACD         ;(2/3)
+0AEE   A9 40      L0AEE         LDA #$40          ;(2)
+0AF0   85 18                    STA $18           ;(3)
+0AF2   4C 10 0F                 JMP L0F10         ;(3)
+0AF5   4C A2 0D   L0AF5         JMP L0DA2         ;(3)
+0AF8   E8         L0AF8         INX               ;(2)
+0AF9   4A                       LSR A             ;(2)
+0AFA   90 FC                    BCC L0AF8         ;(2/3)
+0AFC   E0 0A                    CPX #$0A          ;(2)
+0AFE   D0 02                    BNE L0B02         ;(2/4)
+0B00   A2 00                    LDX #$00          ;(2)
+0B02   A5 35      L0B02         LDA $35           ;(3)
+0B04   D0 DA                    BNE L0AE0         ;(2/4)
+0B06   A9 06                    LDA #$06          ;(2)
+0B08   85 35                    STA $35           ;(3)
+0B0A   86 2F                    STX $2F           ;(3)
+0B0C   8A                       TXA               ;(2)
+0B0D   A6 22                    LDX $22           ;(3)
+0B0F   F0 4D                    BEQ L0B5E         ;(2/3)
+0B11   A0 07                    LDY #$07          ;(2)
+0B13   E0 01                    CPX #$01          ;(2)
+0B15   D0 58                    BNE L0B6F         ;(2/3)
+0B17   A5 09                    LDA $09           ;(3)
+0B19   29 20                    AND #$20          ;(2)
+0B1B   F0 07                    BEQ L0B24         ;(2/3)
+0B1D   A5 36                    LDA $36           ;(3)
+0B1F   4A                       LSR A             ;(2)
+0B20   90 BE                    BCC L0AE0         ;(2/4)
+0B22   66 28                    ROR $28           ;(5)
+0B24   46 07      L0B24         LSR $07           ;(5)
+0B26   90 04                    BCC L0B2C         ;(2/3)
+0B28   C4 2F      L0B28         CPY $2F           ;(3)
+0B2A   90 B4                    BCC L0AE0         ;(2/4)
+0B2C   E6 22      L0B2C         INC $22           ;(5)
+0B2E   A6 22                    LDX $22           ;(3)
+0B30   A5 2F                    LDA $2F           ;(3)
+0B32   95 0A                    STA $0A,X         ;(4)
+0B34   A0 10      L0B34         LDY #$10          ;(2)
+0B36   84 36                    STY $36           ;(3)
+0B38   E0 03                    CPX #$03          ;(2)
+0B3A   D0 A4      L0B3A         BNE L0AE0         ;(2/4)
+0B3C   A0 C8                    LDY #$C8          ;(2)
+0B3E   84 30                    STY $30           ;(3)
+0B40   24 29                    BIT $29           ;(3)
+0B42   70 17                    BVS L0B5B         ;(2/3)
+0B44   18                       CLC               ;(2)
+0B45   A4 0C                    LDY $0C           ;(3)
+0B47   F0 05                    BEQ L0B4E         ;(2/3)
+0B49   69 0A      L0B49         ADC #$0A          ;(2)
+0B4B   88                       DEY               ;(2)
+0B4C   D0 FB                    BNE L0B49         ;(2/3)
+0B4E   A6 0B      L0B4E         LDX $0B           ;(3)
+0B50   CA                       DEX               ;(2)
+0B51   F0 02                    BEQ L0B55         ;(2/3)
+0B53   69 64                    ADC #$64          ;(2)
+0B55   24 00      L0B55         BIT $00           ;(3)
+0B57   30 1C                    BMI L0B75         ;(2/3)
+0B59   A0 CA                    LDY #$CA          ;(2)
+0B5B   4C 4B 0E   L0B5B         JMP L0E4B         ;(3)
+0B5E   C9 01      L0B5E         CMP #$01          ;(2)
+0B60   F0 04                    BEQ L0B66         ;(2/3)
+0B62   C9 02                    CMP #$02          ;(2)
+0B64   D0 D4                    BNE L0B3A         ;(2/3)
+0B66   20 FD 0D   L0B66         JSR L0DFD         ;(6)
+0B69   06 28                    ASL $28           ;(5)
+0B6B   46 28                    LSR $28           ;(5)
+0B6D   10 BD                    BPL L0B2C         ;(2/3)
+0B6F   A5 08      L0B6F         LDA $08           ;(3)
+0B71   F0 B9                    BEQ L0B2C         ;(2/3)
+0B73   D0 B3                    BNE L0B28         ;(2/3)
+0B75   84 22      L0B75         STY $22           ;(3)
+0B77   85 82                    STA PortC           ;(3)
+0B79   AA                       TAX               ;(2)
+0B7A   A5 02                    LDA $02           ;(3)
+0B7C   29 20                    AND #$20          ;(2)
+0B7E   F0 11                    BEQ L0B91         ;(2/3)
+0B80   A0 CF                    LDY #$CF          ;(2)
+0B82   8A                       TXA               ;(2)
+0B83   E0 64                    CPX #$64          ;(2)
+0B85   90 03                    BCC L0B8A         ;(2/3)
+0B87   E9 64                    SBC #$64          ;(2)
+0B89   C8                       INY               ;(2)
+0B8A   09 80      L0B8A         ORA #$80          ;(2)
+0B8C   84 82                    STY PortC           ;(3)
+0B8E   20 25 0D                 JSR L0D25         ;(6)
+0B91   4C B6 0D   L0B91         JMP L0DB6         ;(3)
+
+0B94   A2 03      L0B94         LDX #$03          ;(2)
+0B96   B5 FF      L0B96         LDA $FF,X         ;(4)
+0B98   29 0F                    AND #$0F          ;(2)
+0B9A   95 0D                    STA $0D,X         ;(4)
+0B9C   CA                       DEX               ;(2)
+0B9D   D0 F7                    BNE L0B96         ;(2/3)
+0B9F   24 02                    BIT $02           ;(3)
+0BA1   A5 21                    LDA $21           ;(3)
+0BA3   50 09                    BVC L0BAE         ;(2/3)
+0BA5   D0 0B                    BNE L0BB2         ;(2/3)
+0BA7   A9 0A                    LDA #$0A          ;(2)
+0BA9   85 21                    STA $21           ;(3)
+0BAB   4A                       LSR A             ;(2)
+0BAC   90 4C                    BCC L0BFA         ;(2/3)
+0BAE   F0 02      L0BAE         BEQ L0BB2         ;(2/3)
+0BB0   C6 21                    DEC $21           ;(5)
+0BB2   A5 16      L0BB2         LDA $16           ;(3)
+0BB4   F0 18                    BEQ L0BCE         ;(2/3)
+0BB6   C6 17                    DEC $17           ;(5)
+0BB8   D0 14                    BNE L0BCE         ;(2/3)
+0BBA   A9 10                    LDA #$10          ;(2)
+0BBC   85 17                    STA $17           ;(3)
+0BBE   A5 1E                    LDA $1E           ;(3)
+0BC0   49 01                    EOR #$01          ;(2)
+0BC2   85 1E                    STA $1E           ;(3)
+0BC4   4A                       LSR A             ;(2)
+0BC5   B0 07                    BCS L0BCE         ;(2/3)
+0BC7   C6 16                    DEC $16           ;(5)
+0BC9   A0 CC                    LDY #$CC          ;(2)
+0BCB   20 0B 0E                 JSR L0E0B         ;(6)
+0BCE   A4 1A      L0BCE         LDY $1A           ;(3)
+0BD0   A5 07                    LDA $07           ;(3)
+0BD2   4A                       LSR A             ;(2)
+0BD3   4A                       LSR A             ;(2)
+0BD4   4A                       LSR A             ;(2) coin switches only kept
+0BD5   D0 2E                    BNE L0C05         ;(2/4)
+0BD7   C0 25                    CPY #$25          ;(2)
+0BD9   B0 43                    BCS L0C1E         ;(2/4)
+0BDB   98                       TYA               ;(2)
+0BDC   F0 26                    BEQ L0C04         ;(2/4)
+0BDE   A4 19                    LDY $19           ;(3)
+0BE0   C0 10                    CPY #$10          ;(2)
+0BE2   90 0F                    BCC L0BF3         ;(2/3)
+0BE4   A2 03                    LDX #$03          ;(2)
+0BE6   A5 00                    LDA $00           ;(3)
+0BE8   29 10      L0BE8         AND #$10          ;(2) Dollar bill bonus
+0BEA   F0 02                    BEQ L0BEE         ;(2/3)
+0BEC   E6 15                    INC $15           ;(5)
+0BEE   A5 01      L0BEE         LDA $01           ;(3)
+0BF0   CA                       DEX               ;(2)
+0BF1   D0 F5                    BNE L0BE8         ;(2/3)
+0BF3   98         L0BF3         TYA               ;(2)
+0BF4   18                       CLC               ;(2)
+0BF5   65 16                    ADC $16           ;(3)
+0BF7   85 16                    STA $16           ;(3)
+0BF9   98                       TYA               ;(2)
+0BFA   20 37 0C   L0BFA         JSR L0C37         ;(6)
+0BFD   20 DE 0D                 JSR L0DDE         ;(6)
+0C00   A9 FC                    LDA #$FC          ;(2)
+0C02   85 1A                    STA $1A           ;(3)
+0C04   60         L0C04         RTS               ;(6)
+0C05   C0 30      L0C05         CPY #$30          ;(2)
+0C07   B0 FB                    BCS L0C04         ;(2/3)
+0C09   C0 01                    CPY #$01          ;(2)
+0C0B   D0 11                    BNE L0C1E         ;(2/3)
+0C0D   85 19                    STA $19           ;(3)
+0C0F   A5 02                    LDA $02           ;(3)
+0C11   29 10                    AND #$10          ;(2)
+0C13   D0 09                    BNE L0C1E         ;(2/3)
+0C15   A5 19                    LDA $19           ;(3)
+0C17   4A                       LSR A             ;(2)
+0C18   4A                       LSR A             ;(2)
+0C19   18                       CLC               ;(2)
+0C1A   65 19                    ADC $19           ;(3)
+0C1C   85 19                    STA $19           ;(3)
+0C1E   E6 1A      L0C1E         INC $1A           ;(5)
+0C20   60                       RTS               ;(6)
+
+0C21   A0 05      L0C21         LDY #$05          ;(2)
+0C23   E8                       INX               ;(2)
+0C24   25 03                    AND $03           ;(3)
+0C26   D0 20                    BNE L0C48         ;(2/3)
+0C28   E8                       INX               ;(2)
+0C29   88                       DEY               ;(2)
+0C2A   D0 1C                    BNE L0C48         ;(2/3)
+0C2C   A5 03      L0C2C         LDA $03           ;(3)
+0C2E   29 10                    AND #$10          ;(2)
+0C30   F0 16                    BEQ L0C48         ;(2/3)
+0C32   A0 03                    LDY #$03          ;(2)
+0C34   E8                       INX               ;(2)
+0C35   D0 11                    BNE L0C48         ;(2/3)
+
+0C37   65 1C      L0C37         ADC $1C           ;(3)
+0C39   85 1C                    STA $1C           ;(3)
+0C3B   A0 00                    LDY #$00          ;(2)
+0C3D   A5 04                    LDA $04           ;(3)
+0C3F   29 30                    AND #$30          ;(2)
+0C41   C9 10                    CMP #$10          ;(2)
+0C43   F0 DC                    BEQ L0C21         ;(2/3)
+0C45   90 E5                    BCC L0C2C         ;(2/3)
+0C47   C8                       INY               ;(2)
+
+0C48   A5 10      L0C48         LDA $10           ;(3)
+0C4A   0A                       ASL A             ;(2)
+0C4B   85 11                    STA $11           ;(3)
+0C4D   18                       CLC               ;(2)
+
+0C4E   65 10      L0C4E         ADC $10           ;(3)
+0C50   85 12                    STA $12           ;(3)
+0C52   CA                       DEX               ;(2)
+0C53   10 F9                    BPL L0C4E         ;(2/3)
+
+0C55   65 10      L0C55         ADC $10           ;(3)
+0C57   85 13                    STA $13           ;(3)
+0C59   88                       DEY               ;(2)
+0C5A   10 F9                    BPL L0C55         ;(2/3)
+0C5C   A9 00                    LDA #$00          ;(2)
+0C5E   85 14                    STA $14           ;(3)
+0C60   85 19                    STA $19           ;(3)
+0C62   A0 03                    LDY #$03          ;(2)
+0C64   A5 1C                    LDA $1C           ;(3)
+0C66   AA         L0C66         TAX               ;(2)
+0C67   D9 10 00                 CMP $0010,Y       ;(4/5)
+0C6A   90 21                    BCC L0C8D         ;(2/3)
+0C6C   B9 03 00                 LDA $0003,Y       ;(4/5)
+0C6F   29 0F                    AND #$0F          ;(2)
+0C71   85 2F                    STA $2F           ;(3)
+0C73   C0 03                    CPY #$03          ;(2)
+0C75   18                       CLC               ;(2)
+0C76   D0 06                    BNE L0C7E         ;(2/3)
+0C78   A5 05                    LDA $05           ;(3)
+0C7A   29 10                    AND #$10          ;(2)
+0C7C   65 2F                    ADC $2F           ;(3)
+0C7E   69 00      L0C7E         ADC #$00          ;(2)
+0C80   F0 0B                    BEQ L0C8D         ;(2/3)
+0C82   65 14                    ADC $14           ;(3)
+0C84   85 14                    STA $14           ;(3)
+0C86   8A                       TXA               ;(2)
+0C87   38                       SEC               ;(2)
+0C88   F9 10 00                 SBC $0010,Y       ;(4/5)
+0C8B   B0 D9                    BCS L0C66         ;(2/3)
+0C8D   8A         L0C8D         TXA               ;(2)
+0C8E   88                       DEY               ;(2)
+0C8F   10 D5                    BPL L0C66         ;(2/3)
+0C91   A4 0F                    LDY $0F           ;(3)
+0C93   F0 0A                    BEQ L0C9F         ;(2/3)
+0C95   C5 0F      L0C95         CMP $0F           ;(3)
+0C97   90 06                    BCC L0C9F         ;(2/3)
+0C99   E5 0F                    SBC $0F           ;(3)
+0C9B   E6 14                    INC $14           ;(5)
+0C9D   D0 F6                    BNE L0C95         ;(2/3)
+0C9F   85 1D      L0C9F         STA $1D           ;(3)
+0CA1   60                       RTS               ;(6)
+
+0CA2   24 00      L0CA2         BIT $00           ;(3)
+0CA4   30 37                    BMI L0CDD         ;(2/3) service switch ? =>fin
+0CA6   24 06                    BIT $06           ;(3)  S6R7==1 ? "Optical Index"
+0CA8   30 07                    BMI L0CB1         ;(2/3)
+0CAA   A5 2C                    LDA $2C           ;(3) ;case optical index=0
+0CAC   30 2F                    BMI L0CDD         ;(2/3) fin
+0CAE   C6 2C                    DEC $2C           ;(5)
+0CB0   60                       RTS               ;(6)
+
+;case optical index=1
+0CB1   A5 2C      L0CB1         LDA $2C           ;(3)
+0CB3   10 28                    BPL L0CDD         ;(2/3) return if (m2C) >= 0
+0CB5   A5 1E                    LDA $1E           ;(3) (m1E) is a mem copy of portB
+0CB7   10 24                    BPL L0CDD         ;(2/3) return if m1Eb7=0 (Detent sig on)
+0CB9   0A                       ASL A             ;(2) Acc <= (m1E)*2 
+0CBA   10 21                    BPL L0CDD         ;(2/3) return if m1Eb6=0 (Magazine motor sig on)
+0CBC   A9 01                    LDA #$01          ;(2)
+0CBE   85 2C                    STA $2C           ;(3)
+0CC0   E6 24                    INC $24           ;(5)
+0CC2   A5 28                    LDA $28           ;(3)
+0CC4   09 40                    ORA #$40          ;(2)
+0CC6   85 28                    STA $28           ;(3)
+0CC8   A5 24                    LDA $24           ;(3)
+0CCA   C9 64                    CMP #$64          ;(2) compar #100 decimal
+0CCC   B0 02                    BCS L0CD0         ;(2/3) branch if A>=100
+0CCE   50 07                    BVC L0CD7         ;(2/3) branch if overflow clear
+0CD0   20 39 0D   L0CD0         JSR L0D39         ;(6)
+0CD3   A9 00                    LDA #$00          ;(2)
+0CD5   85 24                    STA $24           ;(3)
+0CD7   A5 2B      L0CD7         LDA $2B           ;(3)
+0CD9   F0 03                    BEQ L0CDE         ;(2/3)
+0CDB   C6 2B                    DEC $2B           ;(5)
+0CDD   60         L0CDD         RTS               ;(6)
+
+0CDE   24 23      L0CDE         BIT $23           ;(3)
+0CE0   10 35                    BPL L0D17         ;(2/4)
+0CE2   A9 80                    LDA #$80          ;(2)
+0CE4   85 23                    STA $23           ;(3)
+0CE6   A2 CE                    LDX #$CE          ;(2)
+0CE8   86 82                    STX PortC           ;(3)
+0CEA   4A                       LSR A             ;(2)
+0CEB   20 25 0D                 JSR L0D25         ;(6)
+
+0CEE   A5 24      L0CEE         LDA $24           ;(3)
+0CF0   24 C0                    BIT PortD          ;(3)
+0CF2   70 03                    BVS L0CF7         ;(2/3)
+0CF4   18                       CLC               ;(2)
+0CF5   69 64                    ADC #$64          ;(2)
+0CF7   85 1F      L0CF7         STA $1F           ;(3)
+0CF9   85 82                    STA PortC           ;(3)
+0CFB   A5 C0                    LDA PortD          ;(3)
+0CFD   30 0E                    BMI L0D0D         ;(2/4)
+0CFF   24 23                    BIT $23           ;(3)
+0D01   70 DA                    BVS L0CDD         ;(2/4)
+0D03   A2 40                    LDX #$40          ;(2)
+0D05   20 1E 0D                 JSR L0D1E         ;(6)
+0D08   24 C0                    BIT PortD          ;(3)
+0D0A   50 E2                    BVC L0CEE         ;(2/4)
+0D0C   60                       RTS               ;(6)
+
+
+0D0D   29 7F      L0D0D         AND #$7F          ;(2)
+0D0F   20 25 0D                 JSR L0D25         ;(6)
+0D12   A2 C0                    LDX #$C0          ;(2)
+0D14   20 1E 0D                 JSR L0D1E         ;(6)
+0D17   06 1E      L0D17         ASL $1E           ;(5)
+0D19   90 55                    BCC L0D70         ;(2/3)
+0D1B   18                       CLC               ;(2)
+0D1C   90 4E                    BCC L0D6C         ;(2/3)
+
+
+0D1E   A9 CE      L0D1E         LDA #$CE          ;(2)
+0D20   85 82                    STA PortC           ;(3)
+0D22   8A                       TXA               ;(2)
+0D23   45 C0                    EOR PortD          ;(3)
+
+f(A)
+write Acc to current address (PC) of NVRAM
+0D25   AA         L0D25         TAX               ;(2)
+write   X to current address (PC) of NVRAM
+0D26   A9 5A      L0D26         LDA #$5A          ;(2)
+0D28   85 80                    STA PortA           ;(3) PA<=01011010 (W, OD)
+0D2A   86 C0                    STX PortD          ;(3) PD<=X
+0D2C   09 80                    ORA #$80          ;(2) 
+0D2E   85 80                    STA PortA           ;(3) PA<=11011010 (R, OD)
+0D30   A2 FF                    LDX #$FF          ;(2)
+0D32   86 C0                    STX PortD          ;(3) PD<=0xFF
+0D34   A9 9A                    LDA #$9A          ;(2)
+0D36   85 80                    STA PortA           ;(3) PA<=10011010 (R, /OD)
+0D38   60                       RTS               ;(6)
+
+
+
+0D39   24 01      L0D39         BIT $01           ;(3)
+0D3B   70 19                    BVS L0D56         ;(2/3) S1R6 == 1 ? "STD / As Selected"
+0D3D   A9 C8                    LDA #$C8          ;(2)
+0D3F   85 82                    STA PortC         ;(3)
+0D41   C6 82      L0D41         DEC PortC         ;(5) PortC<=d199
+0D43   A9 80                    LDA #$80          ;(2)
+0D45   25 C0                    AND PortD         ;(3)
+0D47   D0 19                    BNE L0D62         ;(2/3) Test of first bit7 of NVRAM(199..00) at 1 (in reverse order)
+0D49   A6 82                    LDX PortC         ;(3)
+0D4B   D0 F4                    BNE L0D41         ;(2/3) loop back
+;return if (mode "STD / As Selected"==0 and no bit7 set to 1) or (mode "STD / As Selected"==1  and (mD1)==(mD2)
+0D4D   46 23      L0D4D         LSR $23           ;(5) m23<=m23/2
+0D4F   46 25                    LSR $25           ;(5) m25<=m25/2
+0D51   A9 80                    LDA #$80          ;(2)
+0D53   85 29                    STA $29           ;(3) m29<=#80
+0D55   60                       RTS               ;(6)
+
+0D56   A9 D1      L0D56         LDA #$D1          ;(2)
+0D58   85 82                    STA PortC           ;(3)
+0D5A   A5 C0                    LDA PortD          ;(3)
+0D5C   E6 82                    INC PortC           ;(5)
+0D5E   C5 C0                    CMP PortD          ;(3)
+0D60   F0 EB                    BEQ L0D4D         ;(2/3) return if (mD1)==(mD2)
+
+;there is at least 1 NVRAM(199..0) whose bit7 is 1 or (mode "STD / As Selected"==1  and (mD1)!=(mD2)
+0D62   06 23      L0D62         ASL $23           ;(5)
+0D64   38                       SEC               ;(2)
+0D65   66 23                    ROR $23           ;(5) m23b7<=1
+0D67   06 1E                    ASL $1E           ;(5) m1E<=m1E*2 c<=m1Eb7
+0D69   B0 05                    BCS L0D70         ;(2/3) if carry set => end
+0D6B   38                       SEC               ;(2)
+0D6C   A9 0A      L0D6C         LDA #$0A          ;(2)
+0D6E   85 26                    STA $26           ;(3) m26<=#0A if m1Eb7==0
+0D70   66 1E      L0D70         ROR $1E           ;(5) m1Eb7<=1
+0D72   60                       RTS               ;(6)
+
+
+
+RESET bit7 of NVRAM(CD..00) or NVRAM(CB..00) depending on m03
+0D73   A0 CD      L0D73         LDY #$CD          ;(2)
+0D75   24 03                    BIT $03           ;(3)
+0D77   10 02                    BPL L0D7B         ;(2/3)
+0D79   A0 CB                    LDY #$CB          ;(2)
+
+f(Y) y=#D0 from 083A RESET bit7 of NVRAM(D0..00)
+0D7B   84 82      L0D7B         STY PortC         ;(3) PC<=Y
+0D7D   A9 80                    LDA #$80          ;(2)
+0D7F   24 04                    BIT $04           ;(3) bit7 of m04 => N Test "Memorec Reset"
+0D81   30 06                    BMI L0D89         ;(2/3)
+0D83   A5 C0                    LDA PortD          ;(3)  read PD (read NVRAM at (Y))
+0D85   10 07                    BPL L0D8E         ;(2/3)
+0D87   A9 7F                    LDA #$7F          ;(2)
+0D89   25 C0      L0D89         AND PortD          ;(3)
+0D8B   20 25 0D                 JSR L0D25         ;(6) write Acc to NVRAM
+0D8E   88         L0D8E         DEY               ;(2)
+0D8F   C0 FF                    CPY #$FF          ;(2)
+0D91   90 E8                    BCC L0D7B         ;(2/3)branch if carry=0
+0D93   60                       RTS               ;(6)
+
+;init NVRAM(D1..FF) to #D3
+0D94   A9 D1      L0D94         LDA #$D1          ;(2)
+0D96   85 82                    STA PortC           ;(3) PC<=#D1
+0D98   A2 D3      L0D98         LDX #$D3          ;(2)
+0D9A   20 26 0D                 JSR L0D26         ;(6) write #D3 to current NVRAM location (PC) 
+0D9D   E6 82                    INC PortC           ;(5)
+0D9F   D0 F7                    BNE L0D98         ;(2/3)
+0DA1   60                       RTS               ;(6)
+
+0DA2   20 FD 0D   L0DA2         JSR L0DFD         ;(6)
+0DA5   85 82                    STA PortC           ;(3)
+0DA7   A2 07                    LDX #$07          ;(2)
+0DA9   A5 C0                    LDA PortD          ;(3)
+0DAB   F0 07                    BEQ L0DB4         ;(2/3)
+0DAD   20 CD 0D                 JSR L0DCD         ;(6)
+0DB0   A9 00                    LDA #$00          ;(2)
+0DB2   85 0F                    STA $0F           ;(3)
+0DB4   C6 82      L0DB4         DEC PortC           ;(5)
+0DB6   A2 05      L0DB6         LDX #$05          ;(2)
+0DB8   A5 C0                    LDA PortD          ;(3)
+0DBA   29 7F                    AND #$7F          ;(2)
+0DBC   4C CD 0D                 JMP L0DCD         ;(3)
+
+
+;m0C<=#0
+;m0B<=Acc<100 ? #1 : (#2; Acc -= d100)
+;from ECA: X=2 (95B potentially too)
+0DBF   A0 00      L0DBF         LDY #$00          ;(2)
+0DC1   84 0C                    STY $0C           ;(3)
+0DC3   C9 64                    CMP #$64          ;(2)  decimal 100
+0DC5   90 03                    BCC L0DCA         ;(2/3)
+0DC7   E9 64                    SBC #$64          ;(2)
+0DC9   C8                       INY               ;(2)
+0DCA   C8         L0DCA         INY               ;(2)
+0DCB   84 0B                    STY $0B           ;(3)
+
+;Stocke un nombre à 2 chiffres (de Acc) dans 2 cases consecutives de 0A indexé par X
+;si Acc est < 10 au depart, ($0A + X + 1) <= Acc
+;si Acc est >=10 au depart, ($0A + X + 1) <= chiffre des unités de Acc, ($0A + X) <= chiffre des dizaines de Acc
+;from DBC: X=5
+;from E39: X=5
+;from F96: X=5
+;from DFA: X=2
+;from DAD: X=7
+;from F9D: X=7
+0DCD   A0 00      L0DCD         LDY #$00          ;(2)
+0DCF   C9 0A      L0DCF         CMP #$0A          ;(2)
+0DD1   90 07                    BCC L0DDA         ;(2/3) A<10
+0DD3   E9 0A                    SBC #$0A          ;(2)
+0DD5   C8                       INY               ;(2)
+0DD6   94 0A                    STY $0A,X         ;(4)
+0DD8   D0 F5                    BNE L0DCF         ;(2/3)
+0DDA   E8         L0DDA         INX               ;(2)
+0DDB   95 0A                    STA $0A,X         ;(4)
+0DDD   60                       RTS               ;(6)
+
+
+0DDE   20 FD 0D   L0DDE         JSR L0DFD         ;(6)
+0DE1   A5 15                    LDA $15           ;(3)
+0DE3   18                       CLC               ;(2)
+0DE4   65 14                    ADC $14           ;(3)
+0DE6   C9 64                    CMP #$64          ;(2)
+0DE8   90 06                    BCC L0DF0         ;(2/3)
+0DEA   A9 63                    LDA #$63          ;(2)
+0DEC   85 15                    STA $15           ;(3)
+0DEE   86 14                    STX $14           ;(3)
+0DF0   A2 04      L0DF0         LDX #$04          ;(2)
+0DF2   86 31                    STX $31           ;(3)
+0DF4   A2 02                    LDX #$02          ;(2)
+0DF6   A0 80                    LDY #$80          ;(2)
+0DF8   84 36                    STY $36           ;(3)
+0DFA   4C CD 0D                 JMP L0DCD         ;(3)
+
+
+;Extinction de tous les digits, ou d'un certain nombre en fonction de m22
+0DFD   A0 0B      L0DFD         LDY #$0B          ;(2) Dans la lookup 7-seg, f(B)=0 tout éteint (??)
+0DFF   A2 08                    LDX #$08          ;(2)
+0E01   E4 22      L0E01         CPX $22           ;(3)
+0E03   F0 05                    BEQ L0E0A         ;(2/3) 
+0E05   94 0A                    STY $0A,X         ;(4)
+0E07   CA                       DEX               ;(2)
+0E08   D0 F7                    BNE L0E01         ;(2/3)
+0E0A   60         L0E0A         RTS               ;(6)
+
+;Y contient adresse de base NVRAM (from 0BCB: Y=#CC)
+0E0B   84 82      L0E0B         STY PortC           ;(3)
+0E0D   A6 C0                    LDX PortD          ;(3)
+0E0F   E8                       INX               ;(2)
+0E10   E0 64                    CPX #$64          ;(2) d100
+0E12   90 08                    BCC L0E1C         ;(2/3) branch if X<100
+0E14   98                       TYA               ;(2)
+0E15   29 01                    AND #$01          ;(2)
+0E17   D0 01                    BNE L0E1A         ;(2/3) branch if odd addr 
+0E19   C8                       INY               ;(2)
+0E1A   A2 00      L0E1A         LDX #$00          ;(2) write 0 to nvram
+0E1C   20 26 0D   L0E1C         JSR L0D26         ;(6) write X to (NVRAM) of NVRAM
+0E1F   C4 82                    CPY PortC           ;(3)
+0E21   D0 E8                    BNE L0E0B         ;(2/3) branch to begining with next address when X was >=100 and addr was even
+0E23   C0 CA                    CPY #$CA          ;(2) carry clear if Y<#CA
+0E25   A0 CA                    LDY #$CA          ;(2)
+0E27   90 E2                    BCC L0E0B         ;(2/3)
+0E29   60                       RTS               ;(6)
+
+0E2A   24 05      L0E2A         BIT $05           ;(3)
+0E2C   50 DC                    BVC L0E0A         ;(2/3) S5R6==0 ? "Playmaker Timer"
+0E2E   A5 32                    LDA $32           ;(3)
+0E30   69 63      L0E30         ADC #$63          ;(2) +99
+0E32   90 FC                    BCC L0E30         ;(2/3)
+0E34   69 63                    ADC #$63          ;(2)  +99decimal
+0E36   48                       PHA               ;(3)
+0E37   A2 05                    LDX #$05          ;(2)
+0E39   20 CD 0D                 JSR L0DCD         ;(6) $0A+5, +6<= dizaines de Acc, unités de Acc ($0F,$10)
+0E3C   68                       PLA               ;(4)
+0E3D   A6 08                    LDX $08           ;(3) (RI-3, 5 4 3 2 1)
+0E3F   F0 08                    BEQ L0E49         ;(2/3)
+0E41   A2 07                    LDX #$07          ;(2) cas special pour le RI-3 ??
+0E43   E4 10                    CPX $10           ;(3)
+0E45   B0 02                    BCS L0E49         ;(2/3)
+0E47   E9 04                    SBC #$04          ;(2)
+0E49   A0 CF      L0E49         LDY #$CF          ;(2)
+
+f(A)
+0E4B   85 2F      L0E4B         STA $2F           ;(3)
+0E4D   C9 C8                    CMP #$C8          ;(2)
+0E4F   B0 1E                    BCS L0E6F         ;(2/3) return if A>=200
+0E51   A2 D3                    LDX #$D3          ;(2)
+0E53   86 82      L0E53         STX PortC           ;(3) NVRAM address=D3
+0E55   C5 C0                    CMP PortD          ;(3) 
+0E57   F0 04                    BEQ L0E5D         ;(2/3) branch if A==NVRAM@D3
+0E59   E8                       INX               ;(2)
+0E5A   D0 F7                    BNE L0E53         ;(2/3)
+0E5C   18                       CLC               ;(2)
+0E5D   24 33      L0E5D         BIT $33           ;(3)
+0E5F   30 16                    BMI L0E77         ;(2/3) branch if m33b7=1
+0E61   24 29                    BIT $29           ;(3)
+0E63   50 0E                    BVC L0E73         ;(2/3)
+0E65   24 01                    BIT $01           ;(3)
+0E67   50 07                    BVC L0E70         ;(2/3) test STD / As Selected
+0E69   85 82                    STA PortC           ;(3)
+0E6B   24 C0                    BIT PortD          ;(3)
+0E6D   10 04                    BPL L0E73         ;(2/3)
+0E6F   60         L0E6F         RTS               ;(6)
+0E70   90 0B      L0E70         BCC L0E7D         ;(2/3)
+0E72   60                       RTS               ;(6)
+0E73   B0 2D      L0E73         BCS L0EA2         ;(2/3)
+0E75   90 06                    BCC L0E7D         ;(2/3)
+0E77   24 01      L0E77         BIT $01           ;(3)
+0E79   50 27                    BVC L0EA2         ;(2/3) branch if STD / As Selected == 0
+0E7B   B0 1F                    BCS L0E9C         ;(2/3) branch if Test Switch == 1
+0E7D   A2 D2      L0E7D         LDX #$D2          ;(2)
+0E7F   86 82                    STX PortC           ;(3)
+0E81   A6 C0                    LDX PortD          ;(3) X<=NVRAM@D2
+0E83   86 82                    STX PortC           ;(3)
+0E85   20 25 0D                 JSR L0D25         ;(6) write Acc to (NVRAM@D2) of NVRAM
+0E88   A6 82                    LDX PortC           ;(3)
+0E8A   E8                       INX               ;(2)
+0E8B   D0 02                    BNE L0E8F         ;(2/3)
+0E8D   A2 D3                    LDX #$D3          ;(2) #D3 is the initial value (indicating empty playlist)
+0E8F   A9 D1      L0E8F         LDA #$D1          ;(2) D1 is probably a pointer to the beginning of the playlist
+0E91   85 82                    STA PortC         ;(3) set nvram address to #D1
+0E93   E4 C0                    CPX PortD         ;(3)
+0E95   F0 05                    BEQ L0E9C         ;(2/3) branch there if playlist empty
+0E97   E6 82                    INC PortC         ;(5) playlist is not empty
+0E99   20 26 0D                 JSR L0D26         ;(6) write #D3 to NVRAM@D2 of NVRAM
+0E9C   A9 00      L0E9C         LDA #$00          ;(2)
+0E9E   24 33                    BIT $33           ;(3)
+0EA0   30 02                    BMI L0EA4         ;(2/3)
+0EA2   A9 80      L0EA2         LDA #$80          ;(2) 
+0EA4   A6 2F      L0EA4         LDX $2F           ;(3) Acc is #0 if m33b7==1 or #80 if m33b7==0
+0EA6   86 82                    STX PortC         ;(3) $2F probably contains a song number
+0EA8   05 C0                    ORA PortD         ;(3) the NVRAM@song number b7 is set to 1 if m33b7==0 or left untouched
+0EAA   C0 CA                    CPY #$CA          ;(2)
+0EAC   D0 0A                    BNE L0EB8         ;(2/3)
+0EAE   C9 63                    CMP #$63          ;(2)
+0EB0   F0 06                    BEQ L0EB8         ;(2/3)
+0EB2   C9 E3                    CMP #$E3          ;(2)
+0EB4   F0 02                    BEQ L0EB8         ;(2/3)
+0EB6   69 01                    ADC #$01          ;(2)
+0EB8   20 25 0D   L0EB8         JSR L0D25         ;(6)
+0EBB   C0 CF                    CPY #$CF          ;(2)
+0EBD   F0 39                    BEQ L0EF8         ;(2/3)
+0EBF   20 0B 0E                 JSR L0E0B         ;(6)
+0EC2   24 33                    BIT $33           ;(3)
+0EC4   30 32                    BMI L0EF8         ;(2/3)
+0EC6   A5 2F                    LDA $2F           ;(3)
+0EC8   A2 02                    LDX #$02          ;(2)
+0ECA   20 BF 0D                 JSR L0DBF         ;(6)
+0ECD   86 22                    STX $22           ;(3)
+0ECF   86 13                    STX $13           ;(3) m13<=#02+1 (+1 because of JSR L0DBF which increments X)
+0ED1   A9 08                    LDA #$08          ;(2)
+0ED3   85 33                    STA $33           ;(3)
+0ED5   20 DC 09                 JSR L09DC         ;(6)
+0ED8   A5 15                    LDA $15           ;(3)
+0EDA   18                       CLC               ;(2)
+0EDB   65 14                    ADC $14           ;(3)
+0EDD   F0 0D                    BEQ L0EEC         ;(2/3)
+0EDF   38                       SEC               ;(2)
+0EE0   A6 28                    LDX $28           ;(3)
+0EE2   30 04                    BMI L0EE8         ;(2/3)
+0EE4   E9 01                    SBC #$01          ;(2)
+0EE6   B0 02                    BCS L0EEA         ;(2/3)
+0EE8   E5 0E      L0EE8         SBC $0E           ;(3)
+0EEA   85 15      L0EEA         STA $15           ;(3)
+0EEC   A5 1D      L0EEC         LDA $1D           ;(3)
+0EEE   85 1C                    STA $1C           ;(3)
+0EF0   A2 00                    LDX #$00          ;(2)
+0EF2   86 14                    STX $14           ;(3)
+0EF4   86 22                    STX $22           ;(3)
+0EF6   86 29                    STX $29           ;(3)
+0EF8   A5 15      L0EF8         LDA $15           ;(3)
+0EFA   D0 0C                    BNE L0F08         ;(2/4)
+0EFC   24 01                    BIT $01           ;(3)
+0EFE   50 05                    BVC L0F05         ;(2/4) test STD / As Selected
+0F00   20 73 0D                 JSR L0D73         ;(6)
+0F03   B0 03                    BCS L0F08         ;(2/3)
+0F05   20 94 0D   L0F05         JSR L0D94         ;(6) init NVRAM(D1..FF) to #D3
+0F08   24 23      L0F08         BIT $23           ;(3)
+0F0A   10 01                    BPL L0F0D         ;(2/3)
+0F0C   60                       RTS               ;(6)
+0F0D   4C 39 0D   L0F0D         JMP L0D39         ;(3)
+
+
+0F10   A5 25      L0F10         LDA $25           ;(3)
+0F12   10 26                    BPL L0F3A         ;(2/3)
+0F14   24 00                    BIT $00           ;(3)
+0F16   10 3C                    BPL L0F54         ;(2/3)
+0F18   24 04                    BIT $04           ;(3)
+0F1A   30 1B                    BMI L0F37         ;(2/3)
+0F1C   45 03                    EOR $03           ;(3)
+0F1E   29 40                    AND #$40          ;(2)
+0F20   D0 18                    BNE L0F3A         ;(2/3)
+0F22   A5 1A                    LDA $1A           ;(3)
+0F24   50 0A                    BVC L0F30         ;(2/3)
+0F26   F0 03                    BEQ L0F2B         ;(2/3)
+0F28   C6 1A                    DEC $1A           ;(5)
+0F2A   60                       RTS               ;(6)
+0F2B   A9 CB      L0F2B         LDA #$CB          ;(2)
+0F2D   4C A2 0D                 JMP L0DA2         ;(3)
+0F30   F0 6E      L0F30         BEQ L0FA0         ;(2/3)
+0F32   C9 40                    CMP #$40          ;(2)
+0F34   D0 1E                    BNE L0F54         ;(2/3)
+0F36   60                       RTS               ;(6)
+0F37   20 73 0D   L0F37         JSR L0D73         ;(6)
+0F3A   A2 FF      L0F3A         LDX #$FF          ;(2)
+0F3C   86 20                    STX $20           ;(3)
+0F3E   E8                       INX               ;(2)
+0F3F   86 2E                    STX $2E           ;(3)
+0F41   A2 63                    LDX #$63          ;(2)
+0F43   A9 C0                    LDA #$C0          ;(2)
+0F45   24 00                    BIT $00           ;(3)
+0F47   10 07                    BPL L0F50         ;(2/3)
+0F49   24 03                    BIT $03           ;(3)
+0F4B   70 03                    BVS L0F50         ;(2/3) test Most / Least Popular
+0F4D   0A                       ASL A             ;(2)
+0F4E   A2 00                    LDX #$00          ;(2)
+0F50   85 25      L0F50         STA $25           ;(3)
+0F52   86 1B                    STX $1B           ;(3)
+0F54   20 FD 0D   L0F54         JSR L0DFD         ;(6) extinction de digits
+0F57   E6 20      L0F57         INC $20           ;(5)
+0F59   A6 20                    LDX $20           ;(3)
+0F5B   38         L0F5B         SEC               ;(2)
+0F5C   86 82      L0F5C         STX PortC           ;(3)
+0F5E   A9 7F                    LDA #$7F          ;(2)
+0F60   25 C0                    AND PortD          ;(3)
+0F62   24 00                    BIT $00           ;(3)
+0F64   10 14                    BPL L0F7A         ;(2/3)
+0F66   86 18                    STX $18           ;(3)
+0F68   90 08                    BCC L0F72         ;(2/3)
+0F6A   85 2F                    STA $2F           ;(3)
+0F6C   8A                       TXA               ;(2)
+0F6D   69 63                    ADC #$63          ;(2)
+0F6F   AA                       TAX               ;(2)
+0F70   90 EA                    BCC L0F5C         ;(2/3)
+0F72   65 2F      L0F72         ADC $2F           ;(3)
+0F74   C9 64                    CMP #$64          ;(2)
+0F76   90 02                    BCC L0F7A         ;(2/3)
+0F78   A9 63                    LDA #$63          ;(2)
+0F7A   E0 C8      L0F7A         CPX #$C8          ;(2)
+0F7C   B0 3A                    BCS L0FB8         ;(2/3)
+0F7E   C6 18                    DEC $18           ;(5)
+0F80   F0 22                    BEQ L0FA4         ;(2/3)
+0F82   C5 1B                    CMP $1B           ;(3)
+0F84   F0 0A                    BEQ L0F90         ;(2/3)
+0F86   B0 CF                    BCS L0F57         ;(2/3)
+0F88   C5 2E                    CMP $2E           ;(3)
+0F8A   90 CB                    BCC L0F57         ;(2/3)
+0F8C   85 2E                    STA $2E           ;(3)
+0F8E   B0 C7                    BCS L0F57         ;(2/3)
+0F90   24 00      L0F90         BIT $00           ;(3)
+0F92   10 11                    BPL L0FA5         ;(2/3)
+0F94   A2 05                    LDX #$05          ;(2)
+0F96   20 CD 0D                 JSR L0DCD         ;(6)
+0F99   A5 20                    LDA $20           ;(3)
+0F9B   A2 07                    LDX #$07          ;(2)
+0F9D   20 CD 0D                 JSR L0DCD         ;(6)
+0FA0   A9 40      L0FA0         LDA #$40          ;(2)
+0FA2   85 1A                    STA $1A           ;(3)
+0FA4   60         L0FA4         RTS               ;(6)
+0FA5   24 29      L0FA5         BIT $29           ;(3)
+0FA7   50 06                    BVC L0FAF         ;(2/3)
+0FA9   8A                       TXA               ;(2)
+0FAA   A2 03                    LDX #$03          ;(2)
+0FAC   4C 34 0B                 JMP L0B34         ;(3)
+0FAF   86 1F      L0FAF         STX $1F           ;(3)
+0FB1   06 29                    ASL $29           ;(5)
+0FB3   A9 40                    LDA #$40          ;(2)
+0FB5   85 36                    STA $36           ;(3)
+0FB7   60                       RTS               ;(6)
+0FB8   24 25      L0FB8         BIT $25           ;(3)
+0FBA   70 10                    BVS L0FCC         ;(2/3)
+0FBC   A5 1B                    LDA $1B           ;(3)
+0FBE   C9 63                    CMP #$63          ;(2)
+0FC0   F0 0E                    BEQ L0FD0         ;(2/3)
+0FC2   E6 1B                    INC $1B           ;(5)
+0FC4   A2 00      L0FC4         LDX #$00          ;(2)
+0FC6   86 2E                    STX $2E           ;(3)
+0FC8   86 20                    STX $20           ;(3)
+0FCA   F0 8F                    BEQ L0F5B         ;(2/3)
+0FCC   A5 1B      L0FCC         LDA $1B           ;(3)
+0FCE   D0 0B                    BNE L0FDB         ;(2/3)
+0FD0   A2 05      L0FD0         LDX #$05          ;(2)
+0FD2   A9 0A                    LDA #$0A          ;(2)
+0FD4   95 0E      L0FD4         STA $0E,X         ;(4)
+0FD6   CA                       DEX               ;(2)
+0FD7   10 FB                    BPL L0FD4         ;(2/3)
+0FD9   30 C5                    BMI L0FA0         ;(2/3)
+0FDB   A5 2E      L0FDB         LDA $2E           ;(3)
+0FDD   85 1B                    STA $1B           ;(3)
+0FDF   70 E3                    BVS L0FC4         ;(2/3)
+0FE1   FF FF FF                 ISC $FFFF,X       ;(7)
+0FE4   FF FF FF                 ISC $FFFF,X       ;(7)
+0FE7   FF FF FF                 ISC $FFFF,X       ;(7)
+0FEA   FF FF FF                 ISC $FFFF,X       ;(7)
+0FED   FF FF 7F                 ISC $7FFF,X       ;(7) 0FEF : lookup table for 7-seg
+0FF0   0A                       ASL A             ;(2)
+0FF1   B3 9B                    LAX ($9B),Y       ;(5/6)
+0FF3   CA                       DEX               ;(2)
+0FF4   DD FD 0B                 CMP $0BFD,X       ;(4/5)
+0FF7   FB DB 80                 ISC $80DB,Y       ;(7)    8, 9, -
+0FFA   00                       BRK               ;(7)
+0FFB   08                       PHP               ;(3)
+0FFC   00                       BRK               ;(7)
+0FFD   08                       PHP               ;(3)
+0FFE   00                       BRK               ;(7)
+0FFF   08                       PHP               ;(3)
+                                .END
+
+;auto-generated symbols and labels
+ L0805        $0805
+ L0841        $0841
+ L0D7B        $0D7B
+ L0845        $0845
+ L084B        $084B
+ L0D73        $0D73
+ L0D94        $0D94
+ L0860        $0860
+ L085E        $085E
+ L0854        $0854
+ L086A        $086A
+ L0850        $0850
+ L0887        $0887
+ L0881        $0881
+ L0DA2        $0DA2
+ L0F10        $0F10
+ L0891        $0891
+ L088E        $088E
+ L0E2A        $0E2A
+ L0B94        $0B94
+ L0A94        $0A94
+ L0CA2        $0CA2
+ L08A9        $08A9
+ L08D5        $08D5
+ L0902        $0902
+ L090F        $090F
+ L090C        $090C
+ L0CEE        $0CEE
+ L08B3        $08B3
+ L08DF        $08DF
+ L0904        $0904
+ L08F3        $08F3
+ L08E9        $08E9
+ L0929        $0929
+ L092B        $092B
+ L0D25        $0D25
+ L0D39        $0D39
+ L0915        $0915
+ L0931        $0931
+ L091F        $091F
+ L0D62        $0D62
+ L0936        $0936
+ L0D17        $0D17
+ L093E        $093E
+ L0955        $0955
+ L096B        $096B
+ L0959        $0959
+ L0DDE        $0DDE
+ L0DBF        $0DBF
+ L0965        $0965
+ L0983        $0983
+ L0984        $0984
+ L0993        $0993
+ L09A4        $09A4
+ L0DFD        $0DFD
+ L09B0        $09B0
+ L09CA        $09CA
+ L09CE        $09CE
+ L0A3A        $0A3A
+ L0A07        $0A07
+ L09FC        $09FC
+ L0A13        $0A13
+ L0A15        $0A15
+ L0A1E        $0A1E
+ L0A09        $0A09
+ L0A36        $0A36
+ L0A11        $0A11
+ L0A0B        $0A0B
+ L0A03        $0A03
+ L0A49        $0A49
+ L0A42        $0A42
+ L0A4C        $0A4C
+ L0A57        $0A57
+ L09B8        $09B8
+ L0A84        $0A84
+ L0A74        $0A74
+ L0A89        $0A89
+ L0E4B        $0E4B
+ L0A7A        $0A7A
+ L0AA2        $0AA2
+ L0AE0        $0AE0
+ L0A9E        $0A9E
+ L0AEE        $0AEE
+ L0ACE        $0ACE
+ L0ACD        $0ACD
+ L0AF5        $0AF5
+ L0AF8        $0AF8
+ L0ACB        $0ACB
+ L0B02        $0B02
+ L0B5E        $0B5E
+ L0B6F        $0B6F
+ L0B24        $0B24
+ L0B2C        $0B2C
+ L0B5B        $0B5B
+ L0B4E        $0B4E
+ L0B49        $0B49
+ L0B55        $0B55
+ L0B75        $0B75
+ L0B66        $0B66
+ L0B3A        $0B3A
+ L0B28        $0B28
+ L0B91        $0B91
+ L0B8A        $0B8A
+ L0DB6        $0DB6
+ L0B96        $0B96
+ L0BAE        $0BAE
+ L0BB2        $0BB2
+ L0BFA        $0BFA
+ L0BCE        $0BCE
+ L0E0B        $0E0B
+ L0C05        $0C05
+ L0C1E        $0C1E
+ L0C04        $0C04
+ L0BF3        $0BF3
+ L0BEE        $0BEE
+ L0BE8        $0BE8
+ L0C37        $0C37
+ L0C48        $0C48
+ L0C21        $0C21
+ L0C2C        $0C2C
+ L0C4E        $0C4E
+ L0C55        $0C55
+ L0C8D        $0C8D
+ L0C7E        $0C7E
+ L0C66        $0C66
+ L0C9F        $0C9F
+ L0C95        $0C95
+ L0CDD        $0CDD
+ L0CB1        $0CB1
+ L0CD0        $0CD0
+ L0CD7        $0CD7
+ L0CDE        $0CDE
+ L0CF7        $0CF7
+ L0D0D        $0D0D
+ L0D1E        $0D1E
+ L0D70        $0D70
+ L0D6C        $0D6C
+ L0D56        $0D56
+ L0D41        $0D41
+ L0D4D        $0D4D
+ L0D89        $0D89
+ L0D8E        $0D8E
+ L0D26        $0D26
+ L0D98        $0D98
+ L0DB4        $0DB4
+ L0DCD        $0DCD
+ L0DCA        $0DCA
+ L0DDA        $0DDA
+ L0DCF        $0DCF
+ L0DF0        $0DF0
+ L0E0A        $0E0A
+ L0E01        $0E01
+ L0E1C        $0E1C
+ L0E1A        $0E1A
+ L0E30        $0E30
+ L0E49        $0E49
+ L0E6F        $0E6F
+ L0E5D        $0E5D
+ L0E53        $0E53
+ L0E77        $0E77
+ L0E73        $0E73
+ L0E70        $0E70
+ L0E7D        $0E7D
+ L0EA2        $0EA2
+ L0E9C        $0E9C
+ L0E8F        $0E8F
+ L0EA4        $0EA4
+ L0EB8        $0EB8
+ L0EF8        $0EF8
+ L09DC        $09DC
+ L0EEC        $0EEC
+ L0EE8        $0EE8
+ L0EEA        $0EEA
+ L0F08        $0F08
+ L0F05        $0F05
+ L0F0D        $0F0D
+ L0F3A        $0F3A
+ L0F54        $0F54
+ L0F37        $0F37
+ L0F30        $0F30
+ L0F2B        $0F2B
+ L0FA0        $0FA0
+ L0F50        $0F50
+ L0F7A        $0F7A
+ L0F72        $0F72
+ L0F5C        $0F5C
+ L0FB8        $0FB8
+ L0FA4        $0FA4
+ L0F90        $0F90
+ L0F57        $0F57
+ L0FA5        $0FA5
+ L0FAF        $0FAF
+ L0B34        $0B34
+ L0FCC        $0FCC
+ L0FD0        $0FD0
+ L0F5B        $0F5B
+ L0FDB        $0FDB
+ L0FD4        $0FD4
+ L0FC4        $0FC4
