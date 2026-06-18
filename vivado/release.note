@@ -1,0 +1,38 @@
+2026-01-29
+RSCLN_260129.mcs
+New official version. 
+Full system settings ok (factory settings)
+unused IOB(bitstream conf) : pullup
+Try to understand the flash at startup (which was previously not existing (not sure what is happening))
+
+2025-05-13
+RSCLN_250513.mcs
+New official version. 
+Full system settings ok (factory settings)
+pin DONE : pullup
+enb_dsply signal added usable if R101 populated
+
+2025-02-08
+RSCLN_250208.mcs
+version used for all system distributed until 2025-05-13
+Full system settings ok (factory settings)
+pin DONE : pullup
+identification ok
+
+2025-02-07
+RSCLN_250128.mcs
+New official version. 
+Full system settings ok (factory settings)
+pin DONE : pullup
+identification to be perfected (access of not significant bytes of the spi eeprom...)
+
+
+#memento:
+sometimes use this when you have problems
+set_param labtools.override_cs_server_version_check 1
+
+typical write cfg command:
+write_cfgmem  -format mcs -size 8 -interface SPIx4 -loadbit {up 0x00000000 "C:/Users/garzo/vvd_proj/RS3C1B2/RS3C1B2.runs/impl_1/rs3cctrl.bit" } -loaddata {up 0x00400000 "C:/Xilinx/Vivado/2022.2/data/ip/xilinx/pcie4c_uscale_plus_v1_0/sim/demo_st2_bitfile.bin" } -checksum -file "C:/Users/garzo/vvd_proj/RS3C1B2/RSCLN_241124.mcs"
+
+
+write_cfgmem  -format mcs -size 8 -interface SPIx4 -loadbit {up 0x00000000 "C:/Users/garzo/vvd_proj/RS3C1B2/RS3C1B2.runs/impl_1/rs3cctrl.bit" } -loaddata {up 0x00400000 "C:/Users/garzo/git/pps4asm/tools/recel_games/makegamesrom/genroms/data.bin" } -checksum -force -file "C:/Users/garzo/vvd_proj/RS3C1B2/RSCLN_241125.mcs"
