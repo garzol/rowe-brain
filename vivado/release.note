@@ -1,31 +1,24 @@
-2026-01-29
-RSCLN_260129.mcs
-New official version. 
-Full system settings ok (factory settings)
-unused IOB(bitstream conf) : pullup
-Try to understand the flash at startup (which was previously not existing (not sure what is happening))
+2026-06-18
+ccc6503_250618.mcs
+Same as ccc6503_250615. Bug +8V On signal HMI corrected
 
-2025-05-13
-RSCLN_250513.mcs
-New official version. 
-Full system settings ok (factory settings)
-pin DONE : pullup
-enb_dsply signal added usable if R101 populated
+2026-06-15
+ccc6503_250615.mcs
+Full version running at 1MHz, and no wait states (Rdy=1)
+bitswitches are muxed in simu mode. +8V On signal is specifically controllable only from wiflip but it is not correctly reflected on the web HMI.
+RAM/NVRAM can be dumped out through wsc3c web script
+This version is the one sent to Sylvain for testing on real juke
 
-2025-02-08
-RSCLN_250208.mcs
-version used for all system distributed until 2025-05-13
-Full system settings ok (factory settings)
-pin DONE : pullup
-identification ok
+2026-06-13
+ccc6503_250612.mcs
+improperly labelled 250612 (instead 260612) typo
+Full version running at 1MHz, and no wait states (Rdy=1)
 
-2025-02-07
-RSCLN_250128.mcs
-New official version. 
-Full system settings ok (factory settings)
-pin DONE : pullup
-identification to be perfected (access of not significant bytes of the spi eeprom...)
-
+up to 2026-06-12
+ccc6503.mcs
+version with Rdy signal toggling every other clock tick, because the basic example was like this
+Then the clock frequency was adapted to 2MHz to compensate, and so for the timer PIT
+To be corrected for later versions. 
 
 #memento:
 sometimes use this when you have problems
