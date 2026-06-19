@@ -28,7 +28,7 @@ The CCC board exists in 2 versions:
 
 - 6-08871-04
 
-The 2 boards are interchangeable. However, the -01 hosts a Rockwell microcontroller based on 650x, while the -04 must be equipped with a MOSTEK 3870 microcontroller.
+The 2 boards are interchangeable. However, concerning their 40-pin sockets, the -01 hosts a Rockwell microcontroller based on 650x, while the -04 must be equipped with a MOSTEK 3870 microcontroller.
 
 The differences are very well described in the document [r84ts_dl.pdf](r84ts_dl.pdf).
 
@@ -36,19 +36,26 @@ They both have 40 DIL pins, but their pin-out is different. Hence, you cannot fi
 
 Since the first schematic we have had access to was the -01 (see rowe ami doc p.38), we decided to go cloning the -01. Besides, we are more accustomed to 6502 instruction set rather than to Mostek.
 
+The Rockwell microcontroller is also available in an alternate format (called R6500/1 Alternate). It is a non integrated version of the microcontroller.
 ## Milestone 1: Redesign of the board
-### Synopsis
-![Synopsis](images/cccsynops.001.png)
 
-### Result
-![Original vs clone](images/ovsc.jpg)
+
+### Synopsis
+Le synopsis général de la carte est le suivant:
+
+![Synopsis](images/cccsynops.001.png "Synopsis of the board")
+
+
+
+### Result 
+![Original vs clone](images/ovsc.jpg "Original vs clone: identical outlines")
 
 ## Milestone 2: Cloning of the microcontroller
 ### What is to be rewritten in VHDL 
 ![Schematic of the original microcontroller](images/schemacpu.jpg)
 
 ### ROM Copy 
-We have read the 2K bin code which resides in the 2316 of the R6500/alternate board. This board is made of :
+We have read the 2K bin code which resides in the 2316 of the R6500/1 Alternate board. This board is made of :
 - The CPU, which is a R6503 Rockwell device, clocked at 1MHz.
 - A 6520 PIO
 - A 6532 PIT
