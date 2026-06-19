@@ -1,7 +1,25 @@
 ## VHDL project
 
-### Vivado version
+### Vivado
+#### Version
 At this moment the project can be built with vivado 2025.2
+#### IP usage
+There are 2 specific IPs used in this project :  
+- DBGFIFO   
+- ROMEROWE 
+
+RAMROWE may appear sometimes, but is no longer used. We will remove the scories as we see them.
+
+Having xilinx proprietary IPs is a limitation if you consider porting the project to another brand. It is not a big problem here:  
+- DBGFIFO is required if you want the trace function. If you don't need this, you can remove the corresponding code. Therefore this IP is not really needed.  
+- ROMEROWE can be adapted easily on your platform. You would have to generate the binary coefficients by yourself. Here, the format is .coe.
+
+#### Vivado with Git
+That is a long story. With newer versions of Vivado, the best method is to put the .xpr file under the control of Git + Source files. As simple as that.
+
+But, once we understood how it worked, we learnt that the best method is to locate the source directories outside the scope of the project directory. Hence, when you work on the project, the zone which is under the control of git is not polluted with temporary files of any sort created by Vivado.
+But now, it is going to be complicated to move these directories coherently. We'll see that later if it appears to become a problem.
+
 
 ### Package for 6502 emulation
 Cloning the 6503 CPU is not a big deal, for there are a lot of enthousiasts who have made plenty of good VHDL models. 
