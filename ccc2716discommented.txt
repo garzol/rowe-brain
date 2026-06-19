@@ -25,6 +25,12 @@ PB5<=>  TransferMtr signal
 PB6<=>  MagazineMtr signal
 PB7<=>  Detent signal
 
+S6R7<=> Optical index
+S6R6<=> Optical home
+S6R5<=> Inner cam switch
+S6R4<=> Outer cam switch
+S6R3..0<=> Card lvl_4 8/4/2/1
+
                                 * = $0800
 0800   A2 3F                    LDX #$3F          ;(2) 40-byte RAM reset
 0802   9A                       TXS               ;(2)
