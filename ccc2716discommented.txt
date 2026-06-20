@@ -87,6 +87,7 @@ Batt is low
 083F   30 04                    BMI L0845         ;(2/3)
 
 Batt OK
+probable entry point of the main loop
 0841   24 02      L0841         BIT $02           ;(3)
 0843   10 06                    BPL L084B         ;(2/3)m02b7==0 ? S2R7 "Clear selection memory"
 0845   20 73 0D   L0845         JSR L0D73         ;(6) RESET bit7 of NVRAM(CD..00) or NVRAM(CB..00) depending on m03
@@ -145,13 +146,13 @@ Batt OK
 08A7   29 BF                    AND #$BF          ;(2) Raz of bit6 10111111 (magazineMotorSig)
 08A9   85 1E      L08A9         STA $1E           ;(3)
 08AB   49 FF                    EOR #$FF          ;(2)
-08AD   85 C2                    STA PortB          ;(3) only point where PortB is updated
+08AD   85 C2                    STA PortB         ;(3) only point where PortB is updated
 08AF   06 06                    ASL $06           ;(5)
 08B1   06 06                    ASL $06           ;(5) after this, optical home is in the carry bit
 08B3   A9 CE      L08B3         LDA #$CE          ;(2)
-08B5   85 82                    STA PortC           ;(3)
-08B7   24 C0                    BIT PortD          ;(3)
-08B9   30 1A                    BMI L08D5         ;(2/3)
+08B5   85 82                    STA PortC         ;(3)
+08B7   24 C0                    BIT PortD         ;(3)
+08B9   30 1A                    BMI L08D5         ;(2/3) bit 7 of (nvramCE) == 1 ?
 08BB   24 06                    BIT $06           ;(3) after double ASL at 8AF
 08BD   10 43                    BPL L0902         ;(2/4) S6R7==0 ? "Inner Cam Switch"
 08BF   A5 1E                    LDA $1E           ;(3)
@@ -165,7 +166,7 @@ Batt OK
 08CF   20 EE 0C                 JSR L0CEE         ;(6)
 08D2   4C B3 08                 JMP L08B3         ;(3)
 
-08D5   A5 1E      L08D5         LDA $1E           ;(3)
+08D5   A5 1E      L08D5         LDA $1E           ;(3) 
 08D7   24 06                    BIT $06           ;(3) after double ASL at 8AF
 08D9   10 04                    BPL L08DF         ;(2/3) S6R7==0 ? "Inner Cam Switch"
 08DB   09 14                    ORA #$14          ;(2)
@@ -187,10 +188,11 @@ Batt OK
 08FB   A5 C0                    LDA PortD          ;(3)
 08FD   29 7F                    AND #$7F          ;(2)
 08FF   20 25 0D                 JSR L0D25         ;(6)
+
 0902   A5 1E      L0902         LDA $1E           ;(3)
-0904   09 20      L0904         ORA #$20          ;(2)
+0904   09 20      L0904         ORA #$20          ;(2) PB5 (TransferMtr signal)
 0906   A2 10                    LDX #$10          ;(2)
-0908   86 2D                    STX $2D           ;(3)
+0908   86 2D                    STX $2D           ;(3) (mem2D)<=#0x10
 090A   D0 1D                    BNE L0929         ;(2/3)
 090C   20 39 0D   L090C         JSR L0D39         ;(6)
 090F   24 00      L090F         BIT $00           ;(3)
@@ -205,12 +207,16 @@ Batt OK
 0921   29 EF                    AND #$EF          ;(2)
 0923   C6 2D                    DEC $2D           ;(5)
 0925   10 02                    BPL L0929         ;(2/3)
-0927   29 C3                    AND #$C3          ;(2)
+0927   29 C3                    AND #$C3          ;(2)  #b1100 0011
+
 0929   85 1E      L0929         STA $1E           ;(3)
 092B   20 36 09   L092B         JSR L0936         ;(6)
 092E   4C 41 08                 JMP L0841         ;(3)
+
+
 0931   20 17 0D   L0931         JSR L0D17         ;(6)
 0934   50 E9                    BVC L091F         ;(2/3)
+
 0936   A2 02      L0936         LDX #$02          ;(2)
 0938   A5 22                    LDA $22           ;(3)
 093A   F0 02                    BEQ L093E         ;(2/3)
@@ -682,7 +688,7 @@ Batt OK
 
 0CA2   24 00      L0CA2         BIT $00           ;(3)
 0CA4   30 37                    BMI L0CDD         ;(2/3) service switch ? =>fin
-0CA6   24 06                    BIT $06           ;(3)  S6R7==1 ? "Optical Index"
+0CA6   24 06                    BIT $06           ;(3)  S6R7==1 ? "Optical Index" then goto 0CB1
 0CA8   30 07                    BMI L0CB1         ;(2/3)
 0CAA   A5 2C                    LDA $2C           ;(3) ;case optical index=0
 0CAC   30 2F                    BMI L0CDD         ;(2/3) fin
