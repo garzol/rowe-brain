@@ -1,5 +1,9 @@
 m00..m09 contains returns values for strobe 0..9
-
+         careful with 06 because it is asl asl during the code running. 
+         The value is not valid always valid.
+          
+m14      contains Credit (hex value)
+m1E      Port B Control 
 Strobe 0 : leds
 Strobe 1 : 1st digit Z401
 Strobe 2 : 2nd digit Z402
