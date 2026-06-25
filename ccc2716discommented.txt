@@ -1,9 +1,53 @@
+==============================
+RAM content. Global variables:
 m00..m09 contains returns values for strobe 0..9
          careful with 06 because it is asl asl during the code running. 
+         and what to say about 07 which is worse LSR many times
          The value is not valid always valid.
-          
-m15      contains Credit (hex value)
-m1E      Port B Control 
+
+m0F      Z103 contents  (0B means display off)
+m10      Z104 contents
+m11      Z101 contents
+m12      Z102 contents
+
+m0b      Z402 contents
+m0c      Z401 contents
+m0d      Z400 contents
+         
+m$15     contains Credit (hex value)  (maybe 14 or 15 im not sure)
+m1E      Port B Control  (PB7..PB0) (1 means motor on)
+
+m$24      optical index counter (TBC)
+
+===
+
+initialized ram at reset :
+m23 <= #FF
+m$2B <= #63 (decimal 99) timer for counting down on optical home event
+m$2d <= #10 (decimal 16) manage delay between magazine motor and detent
+
+=============================
+NVRAM content
+nvr00..nvrC7 : counter of number of plays of the corresponding song number + bit7 signaling if to song is to be played
+
+nvr$CE
+nvrCC : total credit since ??? (likely memorec reset )
+nvrD1 : ptr to fifo start of as selected list
+nvrD2 : ptr to fifo end   of as selected list
+nvrD3..FF :  selected list buffer
+initial values for these D1 to FF cels : #D3 everywhere, meaning empty
+
+
+
+=====personal search zone=====
+for internal search work only 
+BIT $00 $03 $07
+$06
+$25
+$2C
+inner cam
+==============================
+
 Strobe 0 : leds
 Strobe 1 : 1st digit Z401
 Strobe 2 : 2nd digit Z402
@@ -133,21 +177,28 @@ probable entry point of the main loop
 0881   20 10 0F   L0881         JSR L0F10         ;(6)
 0884   4C 91 08                 JMP L0891         ;(3)
 
+
 0887   24 23      L0887         BIT $23           ;(3)
 0889   30 03                    BMI L088E         ;(2/3)
 088B   20 2A 0E                 JSR L0E2A         ;(6)
 088E   20 94 0B   L088E         JSR L0B94         ;(6)
+
+
 0891   20 94 0A   L0891         JSR L0A94         ;(6)
-0894   20 A2 0C                 JSR L0CA2         ;(6) test of optical index ($2C involved)
+0894   20 A2 0C                 JSR L0CA2         ;(6) management of optical index ($2C involved)
+;m26 est une sorte de timer (décrémenté ici en 89D, tant qu'il n'est pas nul. Donc réarmé à #0A ailleurs (D6E))
+;Arrivé à 1 on allume le magazine motor, sauf si detent motor est allumé 
 0897   A5 1E                    LDA $1E           ;(3)
 0899   A6 26                    LDX $26           ;(3)
-089B   F0 0C                    BEQ L08A9         ;(2/3) branch if (m26)==0
+089B   F0 0C                    BEQ L08A9         ;(2/3) branch if (m26)==0 (no change to 1E)
 089D   C6 26                    DEC $26           ;(5)  (m26)--
-089F   D0 08                    BNE L08A9         ;(2/3) 
+089F   D0 08                    BNE L08A9         ;(2/3) si m26 valait 1 on continue,
+;
 08A1   09 40                    ORA #$40          ;(2)
 08A3   24 1E                    BIT $1E           ;(3)
 08A5   30 02                    BMI L08A9         ;(2/3) test bit7 (detentSignal)
 08A7   29 BF                    AND #$BF          ;(2) Raz of bit6 10111111 (magazineMotorSig)
+
 08A9   85 1E      L08A9         STA $1E           ;(3)
 08AB   49 FF                    EOR #$FF          ;(2)
 08AD   85 C2                    STA PortB         ;(3) only point where PortB is updated
@@ -170,6 +221,7 @@ probable entry point of the main loop
 08CF   20 EE 0C                 JSR L0CEE         ;(6)
 08D2   4C B3 08                 JMP L08B3         ;(3)
 
+nvrCEb7 is 1
 08D5   A5 1E      L08D5         LDA $1E           ;(3) 
 08D7   24 06                    BIT $06           ;(3) after double ASL at 8AF
 08D9   10 04                    BPL L08DF         ;(2/3) S6R7==0 ? "Inner Cam Switch"
@@ -188,10 +240,11 @@ probable entry point of the main loop
 08F3   29 D3      L08F3         AND #$D3          ;(2)
 08F5   85 1E                    STA $1E           ;(3)
 08F7   24 00                    BIT $00           ;(3)
-08F9   50 30                    BVC L092B         ;(2/4)
+08F9   50 30                    BVC L092B         ;(2/4) branch if cancel switch=0
+;cancel song activated
 08FB   A5 C0                    LDA PortD          ;(3)
-08FD   29 7F                    AND #$7F          ;(2)
-08FF   20 25 0D                 JSR L0D25         ;(6)
+08FD   29 7F                    AND #$7F          ;(2) reset of flag "to be played"
+08FF   20 25 0D                 JSR L0D25         ;(6) write Acc to current address (PC) of NVRAM
 
 0902   A5 1E      L0902         LDA $1E           ;(3)
 0904   09 20      L0904         ORA #$20          ;(2) PB5 (TransferMtr signal)
@@ -200,7 +253,7 @@ probable entry point of the main loop
 090A   D0 1D                    BNE L0929         ;(2/3)
 090C   20 39 0D   L090C         JSR L0D39         ;(6)
 090F   24 00      L090F         BIT $00           ;(3)
-0911   10 02                    BPL L0915         ;(2/3)
+0911   10 02                    BPL L0915         ;(2/3) S0R7==0 ? "+8V On"
 0913   50 1C                    BVC L0931         ;(2/3)
 0915   38         L0915         SEC               ;(2)
 0916   A6 27                    LDX $27           ;(3)
@@ -212,6 +265,7 @@ probable entry point of the main loop
 0923   C6 2D                    DEC $2D           ;(5)
 0925   10 02                    BPL L0929         ;(2/3)
 0927   29 C3                    AND #$C3          ;(2)  #b1100 0011
+
 
 0929   85 1E      L0929         STA $1E           ;(3)
 092B   20 36 09   L092B         JSR L0936         ;(6)
@@ -249,7 +303,7 @@ probable entry point of the main loop
 0969   85 31                    STA $31           ;(3)
 096B   A2 03      L096B         LDX #$03          ;(2)
 096D   24 01                    BIT $01           ;(3)
-096F   30 12                    BMI L0983         ;(2/3)
+096F   30 12                    BMI L0983         ;(2/3) S1R7 = 1 ? Test Switch
 0971   A9 FC                    LDA #$FC          ;(2)
 0973   25 36                    AND $36           ;(3)
 0975   85 36                    STA $36           ;(3)
@@ -264,7 +318,7 @@ probable entry point of the main loop
 0984   05 36      L0984         ORA $36           ;(3)
 0986   A2 03                    LDX #$03          ;(2)
 0988   24 00                    BIT $00           ;(3)
-098A   10 07                    BPL L0993         ;(2/3)
+098A   10 07                    BPL L0993         ;(2/3) S0R7==0 ? "+8V On"
 098C   8A                       TXA               ;(2)
 098D   A2 08                    LDX #$08          ;(2)
 098F   A0 01                    LDY #$01          ;(2)
@@ -405,20 +459,24 @@ probable entry point of the main loop
 0A8F   90 F3                    BCC L0A84         ;(2/3)
 0A91   E6 16                    INC $16           ;(5)
 0A93   60                       RTS               ;(6)
+
+
 0A94   A2 00      L0A94         LDX #$00          ;(2)
 0A96   46 07                    LSR $07           ;(5)
-0A98   90 08                    BCC L0AA2         ;(2/3)
-0A9A   A9 40                    LDA #$40          ;(2)
-0A9C   85 36                    STA $36           ;(3)
-0A9E   86 22      L0A9E         STX $22           ;(3)
-0AA0   10 3E                    BPL L0AE0         ;(2/3)
-0AA2   A9 02      L0AA2         LDA #$02          ;(2)
+0A98   90 08                    BCC L0AA2         ;(2/3) branch if $1 bill switch=0
+0A9A   A9 40                    LDA #$40          ;(2)   case $1 switch = 1
+0A9C   85 36                    STA $36           ;(3)   (m36)<=#$40
+0A9E   86 22      L0A9E         STX $22           ;(3)   (m22)<=#$00
+0AA0   10 3E                    BPL L0AE0         ;(2/3) branch if 50c switch=0
+
+0AA2   A9 02      L0AA2         LDA #$02          ;(2)   
 0AA4   25 36                    AND $36           ;(3)
 0AA6   F0 F6                    BEQ L0A9E         ;(2/3)
+
 0AA8   24 29                    BIT $29           ;(3)
 0AAA   70 42                    BVS L0AEE         ;(2/3)
-0AAC   46 07                    LSR $07           ;(5)
-0AAE   90 1E                    BCC L0ACE         ;(2/3)
+0AAC   46 07                    LSR $07           ;(5)   2nd LSR after 0A96
+0AAE   90 1E                    BCC L0ACE         ;(2/3) branch if 50c switch=0
 0AB0   A4 35                    LDY $35           ;(3)
 0AB2   D0 19                    BNE L0ACD         ;(2/3)
 0AB4   85 31                    STA $31           ;(3)
@@ -427,29 +485,32 @@ probable entry point of the main loop
 0ABB   84 35                    STY $35           ;(3)
 0ABD   A9 C9                    LDA #$C9          ;(2)
 0ABF   24 00                    BIT $00           ;(3)
-0AC1   30 32                    BMI L0AF5         ;(2/3)
+0AC1   30 32                    BMI L0AF5         ;(2/3) S0R7==1 ? "+8V On"
 0AC3   A9 40                    LDA #$40          ;(2)
 0AC5   85 29                    STA $29           ;(3)
 0AC7   06 28                    ASL $28           ;(5)
 0AC9   46 28                    LSR $28           ;(5)
 0ACB   46 25      L0ACB         LSR $25           ;(5)
 0ACD   60         L0ACD         RTS               ;(6)
+
 0ACE   A9 1F      L0ACE         LDA #$1F          ;(2)
-0AD0   25 08                    AND $08           ;(3)
-0AD2   D0 24                    BNE L0AF8         ;(2/3)
+0AD0   25 08                    AND $08           ;(3)   strobe8&1F: keypad 1..5
+0AD2   D0 24                    BNE L0AF8         ;(2/3) branch if keypad 1..5 activated
 0AD4   A2 05                    LDX #$05          ;(2)
 0AD6   A5 09                    LDA $09           ;(3)
-0AD8   D0 1E                    BNE L0AF8         ;(2/3)
+0AD8   D0 1E                    BNE L0AF8         ;(2/3) branch if keypad 6..9 activated (+premium price key)
 0ADA   A5 35                    LDA $35           ;(3)
 0ADC   F0 02                    BEQ L0AE0         ;(2/3)
 0ADE   C6 35                    DEC $35           ;(5)
+
 0AE0   24 00      L0AE0         BIT $00           ;(3)
-0AE2   30 E9                    BMI L0ACD         ;(2/3)
+0AE2   30 E9                    BMI L0ACD         ;(2/3) return if service mode
 0AE4   24 29                    BIT $29           ;(3)
 0AE6   10 E3                    BPL L0ACB         ;(2/3)
 0AE8   A5 36                    LDA $36           ;(3)
 0AEA   29 90                    AND #$90          ;(2)
-0AEC   D0 DF                    BNE L0ACD         ;(2/3)
+0AEC   D0 DF                    BNE L0ACD         ;(2/3) return if bne
+
 0AEE   A9 40      L0AEE         LDA #$40          ;(2)
 0AF0   85 18                    STA $18           ;(3)
 0AF2   4C 10 0F                 JMP L0F10         ;(3)
@@ -479,7 +540,7 @@ probable entry point of the main loop
 0B20   90 BE                    BCC L0AE0         ;(2/4)
 0B22   66 28                    ROR $28           ;(5)
 0B24   46 07      L0B24         LSR $07           ;(5)
-0B26   90 04                    BCC L0B2C         ;(2/3)
+0B26   90 04                    BCC L0B2C         ;(2/3) branch if 25c switch=0
 0B28   C4 2F      L0B28         CPY $2F           ;(3)
 0B2A   90 B4                    BCC L0AE0         ;(2/4)
 0B2C   E6 22      L0B2C         INC $22           ;(5)
@@ -504,7 +565,7 @@ probable entry point of the main loop
 0B50   CA                       DEX               ;(2)
 0B51   F0 02                    BEQ L0B55         ;(2/3)
 0B53   69 64                    ADC #$64          ;(2)
-0B55   24 00      L0B55         BIT $00           ;(3)
+0B55   24 00      L0B55         BIT $00           ;(3)   S0R7 = 1 ? branch if service
 0B57   30 1C                    BMI L0B75         ;(2/3)
 0B59   A0 CA                    LDY #$CA          ;(2)
 0B5B   4C 4B 0E   L0B5B         JMP L0E4B         ;(3)
@@ -690,35 +751,40 @@ probable entry point of the main loop
 0C9F   85 1D      L0C9F         STA $1D           ;(3)
 0CA1   60                       RTS               ;(6)
 
+
+f()
 0CA2   24 00      L0CA2         BIT $00           ;(3)
 0CA4   30 37                    BMI L0CDD         ;(2/3) service switch ? =>fin
-0CA6   24 06                    BIT $06           ;(3)  S6R7==1 ? "Optical Index" then goto 0CB1
-0CA8   30 07                    BMI L0CB1         ;(2/3)
+0CA6   24 06                    BIT $06           ;(3)   N<=S6R7, V<=S6R6
+0CA8   30 07                    BMI L0CB1         ;(2/3) S6R7==1 ? "Optical Index" then goto 0CB1
 0CAA   A5 2C                    LDA $2C           ;(3) ;case optical index=0
-0CAC   30 2F                    BMI L0CDD         ;(2/3) fin
-0CAE   C6 2C                    DEC $2C           ;(5)
-0CB0   60                       RTS               ;(6)
+0CAC   30 2F                    BMI L0CDD         ;(2/3) fin if m2c < 0
+0CAE   C6 2C                    DEC $2C           ;(5) A chaque passage ici avec Opt I. on 
+0CB0   60                       RTS               ;(6) decremente jusqu'à arriver à FF
 
 ;case optical index=1
 0CB1   A5 2C      L0CB1         LDA $2C           ;(3)
-0CB3   10 28                    BPL L0CDD         ;(2/3) return if (m2C) >= 0
+0CB3   10 28                    BPL L0CDD         ;(2/3) return if m2Cb7 = 0
 0CB5   A5 1E                    LDA $1E           ;(3) (m1E) is a mem copy of portB
-0CB7   10 24                    BPL L0CDD         ;(2/3) return if m1Eb7=0 (Detent sig on)
+0CB7   10 24                    BPL L0CDD         ;(2/3) return if m1Eb7=0 (Detent sig off)
 0CB9   0A                       ASL A             ;(2) Acc <= (m1E)*2 
-0CBA   10 21                    BPL L0CDD         ;(2/3) return if m1Eb6=0 (Magazine motor sig on)
+0CBA   10 21                    BPL L0CDD         ;(2/3) return if m1Eb6=0 (Magazine motor sig off)
 0CBC   A9 01                    LDA #$01          ;(2)
-0CBE   85 2C                    STA $2C           ;(3)
-0CC0   E6 24                    INC $24           ;(5)
+0CBE   85 2C                    STA $2C           ;(3) on met #1 dans (m2c)
+0CC0   E6 24                    INC $24           ;(5) incrementation du compteur optical index
 0CC2   A5 28                    LDA $28           ;(3)
 0CC4   09 40                    ORA #$40          ;(2)
-0CC6   85 28                    STA $28           ;(3)
+0CC6   85 28                    STA $28           ;(3) (m28)<=(m28) | #40
 0CC8   A5 24                    LDA $24           ;(3)
 0CCA   C9 64                    CMP #$64          ;(2) compar #100 decimal
 0CCC   B0 02                    BCS L0CD0         ;(2/3) branch if A>=100
-0CCE   50 07                    BVC L0CD7         ;(2/3) branch if overflow clear
+0CCE   50 07                    BVC L0CD7         ;(2/3) branch if S6R6=0 (Optical home) (from BIT at CA6)
+
+;optical home is reached (m24) <=#0, test of timer (m2b) (decrement 2b and return if 2b<>#0)
 0CD0   20 39 0D   L0CD0         JSR L0D39         ;(6)
 0CD3   A9 00                    LDA #$00          ;(2)
-0CD5   85 24                    STA $24           ;(3)
+0CD5   85 24                    STA $24           ;(3) raz optical index counter
+
 0CD7   A5 2B      L0CD7         LDA $2B           ;(3)
 0CD9   F0 03                    BEQ L0CDE         ;(2/3)
 0CDB   C6 2B                    DEC $2B           ;(5)
@@ -730,8 +796,8 @@ probable entry point of the main loop
 0CE4   85 23                    STA $23           ;(3)
 0CE6   A2 CE                    LDX #$CE          ;(2)
 0CE8   86 82                    STX PortC           ;(3)
-0CEA   4A                       LSR A             ;(2)
-0CEB   20 25 0D                 JSR L0D25         ;(6)
+0CEA   4A                       LSR A             ;(2) Acc<-#40
+0CEB   20 25 0D                 JSR L0D25         ;(6) write Acc to current address (PC) of NVRAM
 
 0CEE   A5 24      L0CEE         LDA $24           ;(3)
 0CF0   24 C0                    BIT PortD          ;(3)
@@ -752,7 +818,7 @@ probable entry point of the main loop
 
 
 0D0D   29 7F      L0D0D         AND #$7F          ;(2)
-0D0F   20 25 0D                 JSR L0D25         ;(6)
+0D0F   20 25 0D                 JSR L0D25         ;(6) write Acc to current address (PC) of NVRAM
 0D12   A2 C0                    LDX #$C0          ;(2)
 0D14   20 1E 0D                 JSR L0D1E         ;(6)
 0D17   06 1E      L0D17         ASL $1E           ;(5)
@@ -760,11 +826,11 @@ probable entry point of the main loop
 0D1B   18                       CLC               ;(2)
 0D1C   90 4E                    BCC L0D6C         ;(2/3)
 
-
+f(X)
 0D1E   A9 CE      L0D1E         LDA #$CE          ;(2)
 0D20   85 82                    STA PortC           ;(3)
 0D22   8A                       TXA               ;(2)
-0D23   45 C0                    EOR PortD          ;(3)
+0D23   45 C0                    EOR PortD          ;(3) Acc<=(nvrCE)xor#11000000
 
 f(A)
 write Acc to current address (PC) of NVRAM
@@ -794,6 +860,7 @@ write   X to current address (PC) of NVRAM
 0D49   A6 82                    LDX PortC         ;(3)
 0D4B   D0 F4                    BNE L0D41         ;(2/3) loop back
 ;return if (mode "STD / As Selected"==0 and no bit7 set to 1) or (mode "STD / As Selected"==1  and (mD1)==(mD2)
+;No selection
 0D4D   46 23      L0D4D         LSR $23           ;(5) m23<=m23/2
 0D4F   46 25                    LSR $25           ;(5) m25<=m25/2
 0D51   A9 80                    LDA #$80          ;(2)
@@ -812,7 +879,7 @@ write   X to current address (PC) of NVRAM
 0D64   38                       SEC               ;(2)
 0D65   66 23                    ROR $23           ;(5) m23b7<=1
 0D67   06 1E                    ASL $1E           ;(5) m1E<=m1E*2 c<=m1Eb7
-0D69   B0 05                    BCS L0D70         ;(2/3) if carry set => end
+0D69   B0 05                    BCS L0D70         ;(2/3) if carry set => end (detent on?)
 0D6B   38                       SEC               ;(2)
 0D6C   A9 0A      L0D6C         LDA #$0A          ;(2)
 0D6E   85 26                    STA $26           ;(3) m26<=#0A if m1Eb7==0
@@ -878,7 +945,7 @@ f(Y) y=#D0 from 083A RESET bit7 of NVRAM(D0..00)
 0DCA   C8         L0DCA         INY               ;(2)
 0DCB   84 0B                    STY $0B           ;(3)
 
-;Stocke un nombre à 2 chiffres (de Acc) dans 2 cases consecutives de 0A indexé par X
+;Stocke un nombre à 2 chiffres (de Acc) dans 2 cases consecutives de 0A indexé par X (un 7-seg)
 ;si Acc est < 10 au depart, ($0A + X + 1) <= Acc
 ;si Acc est >=10 au depart, ($0A + X + 1) <= chiffre des unités de Acc, ($0A + X) <= chiffre des dizaines de Acc
 ;from DBC: X=5
@@ -898,7 +965,7 @@ f(Y) y=#D0 from 083A RESET bit7 of NVRAM(D0..00)
 0DDB   95 0A                    STA $0A,X         ;(4)
 0DDD   60                       RTS               ;(6)
 
-
+f(X)
 0DDE   20 FD 0D   L0DDE         JSR L0DFD         ;(6)
 0DE1   A5 15                    LDA $15           ;(3)
 0DE3   18                       CLC               ;(2)
@@ -908,6 +975,7 @@ f(Y) y=#D0 from 083A RESET bit7 of NVRAM(D0..00)
 0DEA   A9 63                    LDA #$63          ;(2)
 0DEC   85 15                    STA $15           ;(3)
 0DEE   86 14                    STX $14           ;(3)
+
 0DF0   A2 04      L0DF0         LDX #$04          ;(2)
 0DF2   86 31                    STX $31           ;(3)
 0DF4   A2 02                    LDX #$02          ;(2)
@@ -937,6 +1005,7 @@ f(Y) y=#D0 from 083A RESET bit7 of NVRAM(D0..00)
 0E17   D0 01                    BNE L0E1A         ;(2/3) branch if odd addr 
 0E19   C8                       INY               ;(2)
 0E1A   A2 00      L0E1A         LDX #$00          ;(2) write 0 to nvram
+
 0E1C   20 26 0D   L0E1C         JSR L0D26         ;(6) write X to (NVRAM) of NVRAM
 0E1F   C4 82                    CPY PortC           ;(3)
 0E21   D0 E8                    BNE L0E0B         ;(2/3) branch to begining with next address when X was >=100 and addr was even
@@ -1067,8 +1136,8 @@ f(A)
 0F10   A5 25      L0F10         LDA $25           ;(3)
 0F12   10 26                    BPL L0F3A         ;(2/3)
 0F14   24 00                    BIT $00           ;(3)
-0F16   10 3C                    BPL L0F54         ;(2/3)
-0F18   24 04                    BIT $04           ;(3)
+0F16   10 3C                    BPL L0F54         ;(2/3) S0R7==0 ? "+8V On" service
+0F18   24 04                    BIT $04           ;(3)   S4R7=1 ? Memorec Reset
 0F1A   30 1B                    BMI L0F37         ;(2/3)
 0F1C   45 03                    EOR $03           ;(3)
 0F1E   29 40                    AND #$40          ;(2)
@@ -1092,13 +1161,14 @@ f(A)
 0F41   A2 63                    LDX #$63          ;(2)
 0F43   A9 C0                    LDA #$C0          ;(2)
 0F45   24 00                    BIT $00           ;(3)
-0F47   10 07                    BPL L0F50         ;(2/3)
+0F47   10 07                    BPL L0F50         ;(2/3) S0R7==0 ? "+8V On" service
 0F49   24 03                    BIT $03           ;(3)
 0F4B   70 03                    BVS L0F50         ;(2/3) test Most / Least Popular
 0F4D   0A                       ASL A             ;(2)
 0F4E   A2 00                    LDX #$00          ;(2)
 0F50   85 25      L0F50         STA $25           ;(3)
 0F52   86 1B                    STX $1B           ;(3)
+
 0F54   20 FD 0D   L0F54         JSR L0DFD         ;(6) extinction de digits
 0F57   E6 20      L0F57         INC $20           ;(5)
 0F59   A6 20                    LDX $20           ;(3)
@@ -1107,7 +1177,7 @@ f(A)
 0F5E   A9 7F                    LDA #$7F          ;(2)
 0F60   25 C0                    AND PortD          ;(3)
 0F62   24 00                    BIT $00           ;(3)
-0F64   10 14                    BPL L0F7A         ;(2/3)
+0F64   10 14                    BPL L0F7A         ;(2/3) S0R7==0 ? "+8V On" service
 0F66   86 18                    STX $18           ;(3)
 0F68   90 08                    BCC L0F72         ;(2/3)
 0F6A   85 2F                    STA $2F           ;(3)
@@ -1131,7 +1201,7 @@ f(A)
 0F8C   85 2E                    STA $2E           ;(3)
 0F8E   B0 C7                    BCS L0F57         ;(2/3)
 0F90   24 00      L0F90         BIT $00           ;(3)
-0F92   10 11                    BPL L0FA5         ;(2/3)
+0F92   10 11                    BPL L0FA5         ;(2/3) S0R7==0 ? "+8V On" service
 0F94   A2 05                    LDX #$05          ;(2)
 0F96   20 CD 0D                 JSR L0DCD         ;(6)
 0F99   A5 20                    LDA $20           ;(3)
