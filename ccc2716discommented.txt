@@ -17,8 +17,8 @@ m0d      Z400 contents
 m$15     contains Credit (hex value)  (maybe 14 or 15 im not sure)
 m1E      Port B Control  (PB7..PB0) (1 means motor on)
 
-m$24      optical index counter (TBC)
-
+m$24     optical index counter (TBC)
+m$26     manage delay  
 ===
 
 initialized ram at reset :
@@ -30,6 +30,7 @@ m$2d <= #10 (decimal 16) manage delay between magazine motor and detent
 NVRAM content
 nvr00..nvrC7 : counter of number of plays of the corresponding song number + bit7 signaling if to song is to be played
 
+nvr$CA : total number of selection (displayed in service mode on long press of memrec advance)
 nvr$CE
 nvrCC : total credit since ??? (likely memorec reset )
 nvrD1 : ptr to fifo start of as selected list
@@ -173,7 +174,8 @@ probable entry point of the main loop
 0878   24 02                    BIT $02           ;(3)
 087A   50 05                    BVC L0881         ;(2/3) S2R6==0 ? "Manual Credit"  
 087C   A9 CD                    LDA #$CD          ;(2)
-087E   20 A2 0D                 JSR L0DA2         ;(6)
+087E   20 A2 0D                 JSR L0DA2         ;(6) write (nvrCC)=>7-seg 4,5, (nvrCD)=>7-seg 6,7 and RTS
+
 0881   20 10 0F   L0881         JSR L0F10         ;(6)
 0884   4C 91 08                 JMP L0891         ;(3)
 
@@ -230,7 +232,7 @@ nvrCEb7 is 1
 08DF   A4 2D      L08DF         LDY $2D           ;(3)
 08E1   F0 10                    BEQ L08F3         ;(2/3)
 08E3   24 C0                    BIT PortD          ;(3)
-08E5   50 02                    BVC L08E9         ;(2/3)
+08E5   50 02                    BVC L08E9         ;(2/3) branch if nvrCEb6=0
 08E7   09 08                    ORA #$08          ;(2)
 08E9   09 10      L08E9         ORA #$10          ;(2)
 08EB   24 06                    BIT $06           ;(3) after double ASL at 8AF
@@ -342,7 +344,7 @@ nvrCEb7 is 1
 09B4   29 08                    AND #$08          ;(2)
 09B6   85 33                    STA $33           ;(3)
 
-;loop for I don't know what (yet) Something having to do with the 7-segs display
+;loop for Something having to do with the 7-segs display
 09B8   A6 13      L09B8         LDX $13           ;(3)
 09BA   B5 0A                    LDA $0A,X         ;(4)
 09BC   E8                       INX               ;(2)
@@ -918,19 +920,20 @@ f(Y) y=#D0 from 083A RESET bit7 of NVRAM(D0..00)
 0D9F   D0 F7                    BNE L0D98         ;(2/3)
 0DA1   60                       RTS               ;(6)
 
-0DA2   20 FD 0D   L0DA2         JSR L0DFD         ;(6)
+f(A) display 7-seg 4,5,6,7 with content of nvr(Acc), nvr(Acc-1)
+0DA2   20 FD 0D   L0DA2         JSR L0DFD         ;(6) extinction digits
 0DA5   85 82                    STA PortC           ;(3)
 0DA7   A2 07                    LDX #$07          ;(2)
 0DA9   A5 C0                    LDA PortD          ;(3)
 0DAB   F0 07                    BEQ L0DB4         ;(2/3)
-0DAD   20 CD 0D                 JSR L0DCD         ;(6)
+0DAD   20 CD 0D                 JSR L0DCD         ;(6)  write the content of nvr(Acc) to 7-seg 6,7
 0DB0   A9 00                    LDA #$00          ;(2)
 0DB2   85 0F                    STA $0F           ;(3)
 0DB4   C6 82      L0DB4         DEC PortC           ;(5)
 0DB6   A2 05      L0DB6         LDX #$05          ;(2)
 0DB8   A5 C0                    LDA PortD          ;(3)
 0DBA   29 7F                    AND #$7F          ;(2)
-0DBC   4C CD 0D                 JMP L0DCD         ;(3)
+0DBC   4C CD 0D                 JMP L0DCD         ;(3)  write the content of nvr(Acc-1) to 7-seg 4,5 and return
 
 
 ;m0C<=#0
@@ -1148,7 +1151,7 @@ f(A)
 0F28   C6 1A                    DEC $1A           ;(5)
 0F2A   60                       RTS               ;(6)
 0F2B   A9 CB      L0F2B         LDA #$CB          ;(2)
-0F2D   4C A2 0D                 JMP L0DA2         ;(3)
+0F2D   4C A2 0D                 JMP L0DA2         ;(3) write (nvrCA)=>7-seg 4,5, (nvrCB)=>7-seg 6,7 and RTS
 0F30   F0 6E      L0F30         BEQ L0FA0         ;(2/3)
 0F32   C9 40                    CMP #$40          ;(2)
 0F34   D0 1E                    BNE L0F54         ;(2/3)
