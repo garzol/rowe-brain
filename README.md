@@ -45,10 +45,31 @@ Le synopsis général de la carte est le suivant:
 
 ![Synopsis](images/cccsynops.001.png "Synopsis of the board")
 
+### List of subsections
+#### Untouched subsections
+We have made an exact chineese copy of the timer and the "uart" subsections, just replacing certain obsolete components with newer (although we kept using the NE555 for example, because this one is probably not going to disappear)
+
+Why? Because, we need to keep being compatible with the 40-pin original CPUs. Therefore, there was no interesting alternative for these sections.
+
+#### NVRAM
+We first believed that a FM18 would make the deal. But it does not work due to an incompatible timing of the /WE signal. We then started with a M48Z58Y-70MH1F SOH28 (sort of SOIC), which is almost the only possible solution given that we were looking for a +5V device. But this one is equipped with a "snaphat" backup battery, which make it a poor solution.
+
+We finally decided to go with a CY14B256LA-ZS, which would have been the perfect solution if the device was not a 3V3 device...
+
+So we had to interface it with a string of translator devices TXB0108, TXS0108... To make it compatible with the rest of the system.
+
+CY14B256LA-ZS is an admirable device. It gets its "non volatile" function from a 68uF capacitor, which gives the required power at power off of the system, giving enough power to make the save. It is quite expensive, though.
+
 
 
 ### Result 
 ![Original vs clone](images/ovsc.jpg "Original vs clone: identical outlines")
+
+This board is available for sale on my site:
+[pps4.fr](https://www.pps4.fr/pd/clone-central-control-computer-board-for-rowe-ami/)
+
+Of course, you can redesign it by yourself if you prefer, taking advice from the synopsis above. But I don't see the point, since the work has already been done.
+
 
 ## Milestone 2: Cloning of the microcontroller
 ### What is to be rewritten in VHDL 
