@@ -22,7 +22,7 @@ m$26     manage delay
 ===
 
 initialized ram at reset :
-m23 <= #FF
+m$23 <= #9A
 m$2B <= #63 (decimal 99) timer for counting down on optical home event
 m$2d <= #10 (decimal 16) manage delay between magazine motor and detent
 
@@ -30,7 +30,7 @@ m$2d <= #10 (decimal 16) manage delay between magazine motor and detent
 NVRAM content
 nvr00..nvrC7 : counter of number of plays of the corresponding song number + bit7 signaling if to song is to be played
 
-nvr$CA : total number of selection (displayed in service mode on long press of memrec advance)
+nvr$CA,$CB : total number of selection (tens, hundreds) (displayed in service mode on long press of memrec advance)
 nvr$CE
 nvrCC : total credit since ??? (likely memorec reset )
 nvrD1 : ptr to fifo start of as selected list
@@ -179,10 +179,11 @@ probable entry point of the main loop
 0881   20 10 0F   L0881         JSR L0F10         ;(6)
 0884   4C 91 08                 JMP L0891         ;(3)
 
-
-0887   24 23      L0887         BIT $23           ;(3)
+;S0R7=0 operational mode
+0887   24 23      L0887         BIT $23           ;(3) #9A at init (10011010)
 0889   30 03                    BMI L088E         ;(2/3)
-088B   20 2A 0E                 JSR L0E2A         ;(6)
+088B   20 2A 0E                 JSR L0E2A         ;(6) ;management of signal playmaker timer
+
 088E   20 94 0B   L088E         JSR L0B94         ;(6)
 
 
@@ -599,36 +600,42 @@ nvrCEb7 is 1
 0B8E   20 25 0D                 JSR L0D25         ;(6)
 0B91   4C B6 0D   L0B91         JMP L0DB6         ;(3)
 
+f_L0B94()
 0B94   A2 03      L0B94         LDX #$03          ;(2)
-0B96   B5 FF      L0B96         LDA $FF,X         ;(4)
-0B98   29 0F                    AND #$0F          ;(2)
-0B9A   95 0D                    STA $0D,X         ;(4)
+0B96   B5 FF      L0B96         LDA $FF,X         ;(4) X=3..1 : m02, m01, m00
+0B98   29 0F                    AND #$0F          ;(2) X=3: mask price of card lvl 1 (40c, 20c, 10c, 5c)
+          											   X=2: mask 1 play price        (40c, 20c, 10c, 5c)
+          											   X=1: mask prem ratio          (40c, 20c, 10c, 5c)
+0B9A   95 0D                    STA $0D,X         ;(4) sta (m10)..(m0e)
 0B9C   CA                       DEX               ;(2)
 0B9D   D0 F7                    BNE L0B96         ;(2/3)
 0B9F   24 02                    BIT $02           ;(3)
-0BA1   A5 21                    LDA $21           ;(3)
-0BA3   50 09                    BVC L0BAE         ;(2/3)
-0BA5   D0 0B                    BNE L0BB2         ;(2/3)
-0BA7   A9 0A                    LDA #$0A          ;(2)
-0BA9   85 21                    STA $21           ;(3)
+0BA1   A5 21                    LDA $21           ;(3) initialized to 0
+0BA3   50 09                    BVC L0BAE         ;(2/3)  S2R6==0 ? (manual credit) bizarre
+0BA5   D0 0B                    BNE L0BB2         ;(2/3) test if (m21)=#0
+0BA7   A9 0A                    LDA #$0A          ;(2) 
+0BA9   85 21                    STA $21           ;(3) reload $21 with #0A
 0BAB   4A                       LSR A             ;(2)
-0BAC   90 4C                    BCC L0BFA         ;(2/3)
-0BAE   F0 02      L0BAE         BEQ L0BB2         ;(2/3)
+0BAC   90 4C                    BCC L0BFA         ;(2/3) bit0 of (m21) == 0 ? ?? the carry is always clear here ??
+0BAE   F0 02      L0BAE         BEQ L0BB2         ;(2/3) 
 0BB0   C6 21                    DEC $21           ;(5)
+
 0BB2   A5 16      L0BB2         LDA $16           ;(3)
 0BB4   F0 18                    BEQ L0BCE         ;(2/3)
 0BB6   C6 17                    DEC $17           ;(5)
 0BB8   D0 14                    BNE L0BCE         ;(2/3)
+;we are here when (m16)<>0 and (m17)==0
 0BBA   A9 10                    LDA #$10          ;(2)
-0BBC   85 17                    STA $17           ;(3)
-0BBE   A5 1E                    LDA $1E           ;(3)
-0BC0   49 01                    EOR #$01          ;(2)
+0BBC   85 17                    STA $17           ;(3) (m17)<=#10
+0BBE   A5 1E                    LDA $1E           ;(3) 
+0BC0   49 01                    EOR #$01          ;(2) Toggle MoneyControl
 0BC2   85 1E                    STA $1E           ;(3)
 0BC4   4A                       LSR A             ;(2)
-0BC5   B0 07                    BCS L0BCE         ;(2/3)
+0BC5   B0 07                    BCS L0BCE         ;(2/3) branch if MoneyControl is on
 0BC7   C6 16                    DEC $16           ;(5)
 0BC9   A0 CC                    LDY #$CC          ;(2)
-0BCB   20 0B 0E                 JSR L0E0B         ;(6)
+0BCB   20 0B 0E                 JSR L0E0B         ;(6) increments nvr ($CC, $CD)
+
 0BCE   A4 1A      L0BCE         LDY $1A           ;(3)
 0BD0   A5 07                    LDA $07           ;(3)
 0BD2   4A                       LSR A             ;(2)
@@ -655,6 +662,7 @@ nvrCEb7 is 1
 0BF5   65 16                    ADC $16           ;(3)
 0BF7   85 16                    STA $16           ;(3)
 0BF9   98                       TYA               ;(2)
+
 0BFA   20 37 0C   L0BFA         JSR L0C37         ;(6)
 0BFD   20 DE 0D                 JSR L0DDE         ;(6)
 0C00   A9 FC                    LDA #$FC          ;(2)
@@ -666,7 +674,7 @@ nvrCEb7 is 1
 0C0B   D0 11                    BNE L0C1E         ;(2/3)
 0C0D   85 19                    STA $19           ;(3)
 0C0F   A5 02                    LDA $02           ;(3)
-0C11   29 10                    AND #$10          ;(2)
+0C11   29 10                    AND #$10          ;(2)  S2R4 (coin ratio)
 0C13   D0 09                    BNE L0C1E         ;(2/3)
 0C15   A5 19                    LDA $19           ;(3)
 0C17   4A                       LSR A             ;(2)
@@ -998,8 +1006,10 @@ f(X)
 0E0A   60         L0E0A         RTS               ;(6)
 
 ;Y contient adresse de base NVRAM (from 0BCB: Y=#CC)
-0E0B   84 82      L0E0B         STY PortC           ;(3)
-0E0D   A6 C0                    LDX PortD          ;(3)
+;f(Y):  nvr (Y) is number part decimal / nvr (Y+1) counts the hundreds
+;the nvr data is incremented. ($CA,$CB) is the total count of songs and also incremented if Y<$CA
+0E0B   84 82      L0E0B         STY PortC         ;(3)
+0E0D   A6 C0                    LDX PortD         ;(3)
 0E0F   E8                       INX               ;(2)
 0E10   E0 64                    CPX #$64          ;(2) d100
 0E12   90 08                    BCC L0E1C         ;(2/3) branch if X<100
@@ -1009,16 +1019,17 @@ f(X)
 0E19   C8                       INY               ;(2)
 0E1A   A2 00      L0E1A         LDX #$00          ;(2) write 0 to nvram
 
-0E1C   20 26 0D   L0E1C         JSR L0D26         ;(6) write X to (NVRAM) of NVRAM
-0E1F   C4 82                    CPY PortC           ;(3)
+0E1C   20 26 0D   L0E1C         JSR L0D26         ;(6) write X to (NVRAM) of NVRAM (incremente la case pointée en cours)
+0E1F   C4 82                    CPY PortC         ;(3)
 0E21   D0 E8                    BNE L0E0B         ;(2/3) branch to begining with next address when X was >=100 and addr was even
 0E23   C0 CA                    CPY #$CA          ;(2) carry clear if Y<#CA
 0E25   A0 CA                    LDY #$CA          ;(2)
 0E27   90 E2                    BCC L0E0B         ;(2/3)
 0E29   60                       RTS               ;(6)
 
+;management of signal playmaker timer
 0E2A   24 05      L0E2A         BIT $05           ;(3)
-0E2C   50 DC                    BVC L0E0A         ;(2/3) S5R6==0 ? "Playmaker Timer"
+0E2C   50 DC                    BVC L0E0A         ;(2/3) return if S5R6==0  "Playmaker Timer"
 0E2E   A5 32                    LDA $32           ;(3)
 0E30   69 63      L0E30         ADC #$63          ;(2) +99
 0E32   90 FC                    BCC L0E30         ;(2/3)
@@ -1033,12 +1044,13 @@ f(X)
 0E43   E4 10                    CPX $10           ;(3)
 0E45   B0 02                    BCS L0E49         ;(2/3)
 0E47   E9 04                    SBC #$04          ;(2)
+
 0E49   A0 CF      L0E49         LDY #$CF          ;(2)
 
 f(A)
-0E4B   85 2F      L0E4B         STA $2F           ;(3)
+0E4B   85 2F      L0E4B         STA $2F           ;(3) first time (m2F)<=
 0E4D   C9 C8                    CMP #$C8          ;(2)
-0E4F   B0 1E                    BCS L0E6F         ;(2/3) return if A>=200
+0E4F   B0 1E                    BCS L0E6F         ;(2/3) return if A>=200 (not a song number
 0E51   A2 D3                    LDX #$D3          ;(2)
 0E53   86 82      L0E53         STX PortC           ;(3) NVRAM address=D3
 0E55   C5 C0                    CMP PortD          ;(3) 
@@ -1086,16 +1098,16 @@ f(A)
 0EA6   86 82                    STX PortC         ;(3) $2F probably contains a song number
 0EA8   05 C0                    ORA PortD         ;(3) the NVRAM@song number b7 is set to 1 if m33b7==0 or left untouched
 0EAA   C0 CA                    CPY #$CA          ;(2)
-0EAC   D0 0A                    BNE L0EB8         ;(2/3)
-0EAE   C9 63                    CMP #$63          ;(2)
+0EAC   D0 0A                    BNE L0EB8         ;(2/3) if Y<>$CA then let's update the NVRAM@song number to NVRAM
+0EAE   C9 63                    CMP #$63          ;(2) compare with d99 (meaningful only if we come up here from branch in EA0
 0EB0   F0 06                    BEQ L0EB8         ;(2/3)
-0EB2   C9 E3                    CMP #$E3          ;(2)
+0EB2   C9 E3                    CMP #$E3          ;(2) compare with d227
 0EB4   F0 02                    BEQ L0EB8         ;(2/3)
-0EB6   69 01                    ADC #$01          ;(2)
-0EB8   20 25 0D   L0EB8         JSR L0D25         ;(6)
+0EB6   69 01                    ADC #$01          ;(2) (nvrCA) likely is the total number of sels since i don't know 
+0EB8   20 25 0D   L0EB8         JSR L0D25         ;(6)  write Acc to NVRAM at current PC (update the NVRAM song number. Bit request is set)
 0EBB   C0 CF                    CPY #$CF          ;(2)
 0EBD   F0 39                    BEQ L0EF8         ;(2/3)
-0EBF   20 0B 0E                 JSR L0E0B         ;(6)
+0EBF   20 0B 0E                 JSR L0E0B         ;(6) increment (Y, Y+1) in NVR Y is tens, Y+1 is hundreds
 0EC2   24 33                    BIT $33           ;(3)
 0EC4   30 32                    BMI L0EF8         ;(2/3)
 0EC6   A5 2F                    LDA $2F           ;(3)
@@ -1135,12 +1147,13 @@ f(A)
 0F0C   60                       RTS               ;(6)
 0F0D   4C 39 0D   L0F0D         JMP L0D39         ;(3)
 
-
+f_L0F10()
 0F10   A5 25      L0F10         LDA $25           ;(3)
 0F12   10 26                    BPL L0F3A         ;(2/3)
 0F14   24 00                    BIT $00           ;(3)
 0F16   10 3C                    BPL L0F54         ;(2/3) S0R7==0 ? "+8V On" service
-0F18   24 04                    BIT $04           ;(3)   S4R7=1 ? Memorec Reset
+;case S0R7=1
+0F18   24 04                    BIT $04           ;(3)   S4R7==1 ? Memorec Reset
 0F1A   30 1B                    BMI L0F37         ;(2/3)
 0F1C   45 03                    EOR $03           ;(3)
 0F1E   29 40                    AND #$40          ;(2)
@@ -1156,11 +1169,12 @@ f(A)
 0F32   C9 40                    CMP #$40          ;(2)
 0F34   D0 1E                    BNE L0F54         ;(2/3)
 0F36   60                       RTS               ;(6)
-0F37   20 73 0D   L0F37         JSR L0D73         ;(6)
+;case S4R7=1
+0F37   20 73 0D   L0F37         JSR L0D73         ;(6) RESET bit7 of NVRAM(CD..00) or NVRAM(CB..00) depending on m03
 0F3A   A2 FF      L0F3A         LDX #$FF          ;(2)
-0F3C   86 20                    STX $20           ;(3)
+0F3C   86 20                    STX $20           ;(3) (m20)<=#FF
 0F3E   E8                       INX               ;(2)
-0F3F   86 2E                    STX $2E           ;(3)
+0F3F   86 2E                    STX $2E           ;(3) (m2e)<=#00
 0F41   A2 63                    LDX #$63          ;(2)
 0F43   A9 C0                    LDA #$C0          ;(2)
 0F45   24 00                    BIT $00           ;(3)
@@ -1171,7 +1185,7 @@ f(A)
 0F4E   A2 00                    LDX #$00          ;(2)
 0F50   85 25      L0F50         STA $25           ;(3)
 0F52   86 1B                    STX $1B           ;(3)
-
+;case S0R7==0
 0F54   20 FD 0D   L0F54         JSR L0DFD         ;(6) extinction de digits
 0F57   E6 20      L0F57         INC $20           ;(5)
 0F59   A6 20                    LDX $20           ;(3)
@@ -1213,6 +1227,7 @@ f(A)
 0FA0   A9 40      L0FA0         LDA #$40          ;(2)
 0FA2   85 1A                    STA $1A           ;(3)
 0FA4   60         L0FA4         RTS               ;(6)
+
 0FA5   24 29      L0FA5         BIT $29           ;(3)
 0FA7   50 06                    BVC L0FAF         ;(2/3)
 0FA9   8A                       TXA               ;(2)
@@ -1223,6 +1238,8 @@ f(A)
 0FB3   A9 40                    LDA #$40          ;(2)
 0FB5   85 36                    STA $36           ;(3)
 0FB7   60                       RTS               ;(6)
+
+
 0FB8   24 25      L0FB8         BIT $25           ;(3)
 0FBA   70 10                    BVS L0FCC         ;(2/3)
 0FBC   A5 1B                    LDA $1B           ;(3)
